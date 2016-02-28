@@ -1,6 +1,6 @@
 SRC=src
 
-LOGLIBPATH:=$(PWD)/../src
+LOGLIBPATH:=../src
 
 CFLAGS+=-O3 -g -I$(LOGLIBPATH)
 LIBS+=-llog

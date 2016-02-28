@@ -36,11 +36,15 @@ $(program): $(objects)
 
 .PHONY: clean
 clean:
-	$(RM) $(objects) $(dependencies) $(program)
+	$(RM) $(objects) $(dependencies) $(program) $(SRC)/*.gcda $(SRC)/*.gcno
 
 .PHONY: run
 run: build
 	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(LOGLIBPATH) ./$(program)
+
+.PHONY: gcov
+gcov:
+	@$(MAKE) CFLAGS+="$(CFLAGS) --coverage" LDFLAGS+="$(LDFLAGS) --coverage" build
 
 .PHONY: valgrind
 valgrind: build

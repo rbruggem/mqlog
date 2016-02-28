@@ -3,3 +3,7 @@
 *.so
 *.a
 test/src/test
+*.gcda
+*.gcno
+cov.info
+lcov-html

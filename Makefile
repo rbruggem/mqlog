@@ -39,7 +39,18 @@ build: $(libraries)
 
 .PHONY: clean
 clean:
-	$(RM) $(objects) $(dependencies) $(libraries)
+	$(RM) $(objects) $(dependencies) $(libraries) $(SRC)/*.gcda $(SRC)/*.gcno
+
+.PHONY: gcov
+gcov:
+	@$(MAKE) CFLAGS+="$(CFLAGS) --coverage" LDFLAGS+="$(LDFLAGS) --coverage" build
+	@$(MAKE) -C test gcov
+
+.PHONY: lcov
+lcov: gcov
+	@make -C test run
+	@geninfo --no-checksum -o cov.info src
+	@genhtml --legend -o lcov-html cov.info
 
 # Dependencies
 ifneq ($(MAKECMDGOALS),clean)

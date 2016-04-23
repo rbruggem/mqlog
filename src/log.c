@@ -146,7 +146,7 @@ static uint64_t claim_woffset(log_t* lg, size_t size) {
     return __sync_fetch_and_add(&lg->w_offset, size);
 }
 
-log_t* log_init(const char* dir, uint64_t offset, size_t size) {
+log_t* log_open(const char* dir, uint64_t offset, size_t size) {
     // Size has to be a multiple of page size.
     if (size % pagesize() != 0) {
         return NULL;

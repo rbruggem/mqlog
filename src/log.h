@@ -9,7 +9,7 @@
 typedef struct log log_t;
 
 /* non thread safe functions */
-log_t*  log_init(const char*, uint64_t, size_t);
+log_t*  log_open(const char*, uint64_t, size_t);
 int     log_close(log_t*);
 
 /* thread safe functions */

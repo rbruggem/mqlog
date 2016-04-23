@@ -9,7 +9,7 @@ TEST(test_write_read) {
     const size_t size = 10485760; // 10 MB
     const const char* dir = "/tmp/test_write_read";
 
-    log_t* lg = log_init(dir, 0, size);
+    log_t* lg = log_open(dir, 0, size);
     ASSERT(lg);
 
     const char* str = "Lorem ipsum dolor sit amet, etc ...";
@@ -50,7 +50,7 @@ TEST(test_write_close_open_read) {
     const size_t size = 10485760; // 10 MB
     const const char* dir = "/tmp/test_write_close_open_read";
 
-    log_t* lg = log_init(dir, 0, size);
+    log_t* lg = log_open(dir, 0, size);
     ASSERT(lg);
 
     const int n = 14434;
@@ -65,7 +65,7 @@ TEST(test_write_close_open_read) {
 
     ASSERT(log_close(lg) == 0);
 
-    lg = log_init(dir, 0, size);
+    lg = log_open(dir, 0, size);
     ASSERT(lg);
 
     uint64_t offset = 0;

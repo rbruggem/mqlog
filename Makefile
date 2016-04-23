@@ -40,6 +40,7 @@ build: $(libraries)
 .PHONY: clean
 clean:
 	$(RM) $(objects) $(dependencies) $(libraries) $(SRC)/*.gcda $(SRC)/*.gcno
+	@$(MAKE) -C test clean
 
 .PHONY: gcov
 gcov:

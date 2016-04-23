@@ -37,7 +37,7 @@ int test_read() {
     while (log_read(lg, offset, &fr) == 0) {
         offset += fr.hdr->size;
         size_t payload_size = frame_payload_size(&fr);
-        printf("> %"PRIu64": %.*s\n", offset, payload_size, fr.buffer);
+        printf("> %"PRIu64": %.*s\n", offset, (int)payload_size, fr.buffer);
     }
 
     log_close(lg);

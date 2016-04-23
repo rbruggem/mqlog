@@ -1,52 +1,95 @@
+#include "testfw.h"
 #include <log.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <inttypes.h>
 
-int test_write() {
+TEST(test_write_read) {
     const size_t size = 10485760; // 10 MB
-    log_t* lg = log_init("/tmp/test", 0, size);
-    if (!lg) {
-        printf("Failed to create log\n");
-        return -1;
-    }
+    const const char* dir = "/tmp/test_write_read";
 
-    const char* str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Morbi euismod purus ante, eget vestibulum est semper a. Mauris quis leo in elit tristique ultrices vel ut nisl. Quisque eget ante fermentum, tristique ex id, gravida mauris. Vestibulum non nisl sagittis, pharetra lacus ut, viverra neque. Pellentesque ut porttitor enim. Nulla ut tempus risus, et suscipit nunc. Proin est odio, mattis nec faucibus sed, suscipit non nulla. Quisque vel gravida enim. Fusce vel quam id lorem lobortis condimentum. Vestibulum a metus eros. Pellentesque iaculis feugiat lacus eu condimentum. Curabitur nec enim placerat, sodales sem non, suscipit nulla. Nunc viverra vehicula odio, ac tempus turpis vulputate consectetur. Mauris rhoncus dolor vitae elit tincidunt pulvinar. Integer egestas pulvinar metus sit amet tincidunt.";
-    ssize_t w = log_write(lg, str, strlen(str));
-    printf("written %zu bytes\n", w);
+    log_t* lg = log_init(dir, 0, size);
+    ASSERT(lg);
+
+    const char* str = "Lorem ipsum dolor sit amet, etc ...";
+    const size_t str_size = strlen(str);
+    ssize_t written = log_write(lg, str, str_size);
+    ASSERT(str_size == (size_t)written);
 
     const char* str2 = "what's up?";
-    w = log_write(lg, str2, strlen(str2));
-    printf("written %zu bytes\n", w);
-
-    log_close(lg);
-    return 0;
-}
-
-int test_read() {
-    const size_t size = 10485760; // 10 MB
-    log_t* lg = log_init("/tmp/test", 0, size);
-    if (!lg) {
-        printf("Failed to create log\n");
-        return -1;
-    }
+    const size_t str2_size = strlen(str2);
+    written = log_write(lg, str2, str2_size);
+    ASSERT(str2_size == (size_t)written);
 
     uint64_t offset = 0;
     struct frame fr;
-    while (log_read(lg, offset, &fr) == 0) {
-        offset += fr.hdr->size;
-        size_t payload_size = frame_payload_size(&fr);
-        printf("> %"PRIu64": %.*s\n", offset, (int)payload_size, fr.buffer);
-    }
 
-    log_close(lg);
-    return 0;
+    int rc = log_read(lg, offset, &fr);
+    ASSERT(rc == 0);
+
+    offset += fr.hdr->size;
+    size_t payload_size = frame_payload_size(&fr);
+    ASSERT(payload_size == str_size);
+    ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
+
+    rc = log_read(lg, offset, &fr);
+    ASSERT(rc == 0);
+
+    offset += fr.hdr->size;
+    payload_size = frame_payload_size(&fr);
+    ASSERT(payload_size == str2_size);
+    ASSERT(strncmp((const char*)fr.buffer, str2, payload_size) == 0);
+
+    ASSERT(log_close(lg) == 0);
+
+    ASSERT(log_destroy(dir) == 0);
 }
 
-int main() {
-    test_write();
-    test_read();
+TEST(test_write_close_open_read) {
+    const size_t size = 10485760; // 10 MB
+    const const char* dir = "/tmp/test_write_close_open_read";
 
-    return 0;
+    log_t* lg = log_init(dir, 0, size);
+    ASSERT(lg);
+
+    const int n = 14434;
+    const size_t n_size = sizeof(n);
+    ssize_t written = log_write(lg, &n, n_size);
+    ASSERT(n_size == (size_t)written);
+
+    const double d = 45435.2445;
+    const size_t d_size = sizeof(d);
+    written = log_write(lg, &d, d_size);
+    ASSERT(d_size == (size_t)written);
+
+    ASSERT(log_close(lg) == 0);
+
+    lg = log_init(dir, 0, size);
+    ASSERT(lg);
+
+    uint64_t offset = 0;
+    struct frame fr;
+
+    int rc = log_read(lg, offset, &fr);
+    ASSERT(rc == 0);
+
+    offset += fr.hdr->size;
+    size_t payload_size = frame_payload_size(&fr);
+    ASSERT(payload_size == n_size);
+    int n_read = *(int*)fr.buffer;
+    ASSERT(n == n_read);
+
+    rc = log_read(lg, offset, &fr);
+    ASSERT(rc == 0);
+    payload_size = frame_payload_size(&fr);
+    ASSERT(payload_size == d_size);
+    double d_read = *(double*)fr.buffer;
+    ASSERT(d == d_read);
+
+    offset += fr.hdr->size;
+
+    ASSERT(log_close(lg) == 0);
+
+    ASSERT(log_destroy(dir) == 0);
 }

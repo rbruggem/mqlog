@@ -307,3 +307,7 @@ int log_read(const log_t* lg, uint64_t offset, struct frame* fr) {
 
     return 0;
 }
+
+int log_destroy(const char* dir) {
+    return delete_directory(dir);
+}

@@ -16,4 +16,6 @@ int     log_close(log_t*);
 ssize_t log_write(log_t*, const void*, size_t);
 int log_read(const log_t*, uint64_t, struct frame*);
 
+int log_destroy(const char*);
+
 #endif

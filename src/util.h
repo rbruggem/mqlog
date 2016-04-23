@@ -9,6 +9,7 @@ size_t       pagesize() __attribute__((const));
 int          file_exists(const char*);
 size_t       page_aligned_addr(size_t);
 int          ensure_directory(const char*);
+int          delete_directory(const char*);
 int          append_file_to_dir(char*, size_t, const char*, const char*);
 unsigned int crc32(unsigned char*, size_t);
 
@@ -17,6 +18,15 @@ unsigned int crc32(unsigned char*, size_t);
 #define PRINT(...) printf(__VA_ARGS__)
 #else
 #define PRINT(x) do {} while (0);
+#endif
+
+#ifdef UNUSED
+#elif defined(__GNUC__)
+#define UNUSED(x) UNUSED_ ## x __attribute__((unused))
+#elif defined(__LCLINT__)
+#define UNUSED(x) /*@unused@*/ x
+#else
+#define UNUSED(x) x
 #endif
 
 #endif

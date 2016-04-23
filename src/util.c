@@ -1,9 +1,17 @@
 #include "util.h"
+#include <ftw.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <sched.h>
 #include <sys/stat.h>
 #include <string.h>
+
+static int remove_callback(const char* file,
+                           const struct stat* UNUSED(stat),
+                           int UNUSED(typeflag),
+                           struct FTW* UNUSED(ftwbuf)) {
+    return remove(file);
+}
 
 int pow2(uint64_t n) {
     unsigned int one_bits = 0;
@@ -38,6 +46,11 @@ int ensure_directory(const char* dir) {
         return mkdir(dir, 0700);
     }
     return 0;
+}
+
+int delete_directory(const char* dir) {
+    const int max_fds = 64;
+    return nftw(dir, remove_callback, max_fds, FTW_DEPTH | FTW_PHYS);
 }
 
 int append_file_to_dir(char* buf,

@@ -12,10 +12,7 @@ To compile:
 
 To run tests (after having compiled):
 
-```
-cd test
-make run
-```
+`make test`
 
 To generate test code coverage (requires `lcov` package)
 

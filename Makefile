@@ -42,6 +42,10 @@ clean:
 	$(RM) $(objects) $(dependencies) $(libraries) $(SRC)/*.gcda $(SRC)/*.gcno
 	@$(MAKE) -C test clean
 
+.PHONY: test
+test: build
+	@$(MAKE) -C test run
+
 .PHONY: gcov
 gcov:
 	@$(MAKE) CFLAGS+="$(CFLAGS) --coverage" LDFLAGS+="$(LDFLAGS) --coverage" build

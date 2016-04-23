@@ -2,7 +2,7 @@ SRC=src
 
 LOGLIBPATH:=../src
 
-CFLAGS+=-O3 -g -I$(LOGLIBPATH)
+CFLAGS+=-O0 -g -I$(LOGLIBPATH)
 LIBS+=-llog
 LDFLAGS+=-L$(LOGLIBPATH)
 
@@ -56,6 +56,7 @@ valgrind: build
             --show-reachable=yes \
             --num-callers=20 \
             --track-fds=yes \
+            --track-origins=yes \
             $(program)
 
 # Dependencies

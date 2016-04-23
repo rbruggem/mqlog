@@ -1,6 +1,0 @@
-FIFO brokerless log-like data structure library inspired by:
-
-* Apache Kafka
-* Aeron
-* LMAX Disruptor
-* Write ahead logs

@@ -10,7 +10,7 @@ To compile:
 
 `make`
 
-To run tests (after having compiled):
+To run tests:
 
 `make test`
 

@@ -1,4 +1,4 @@
-#include "log.h"
+#include "segment.h"
 #include "prot.h"
 #include "util.h"
 #include <string.h>
@@ -14,7 +14,7 @@
 #define DATA_SUFFIX  "log"
 #define META_SUFFIX  "meta"
 
-struct log {
+struct segment {
     int                meta_fd;
     int                data_fd;
     size_t             size;
@@ -79,7 +79,7 @@ static int open_data(const char* dir, uint64_t offset, size_t size) {
         return -1;
     }
 
-    // file contains the fullpath of the log file
+    // file contains the fullpath of the segment file
     int fd = open(file,
                   O_RDWR | O_CREAT,
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
@@ -113,82 +113,82 @@ error:
     return -1;
 }
 
-static int load_meta(log_t* lg, int meta_fd) {
+static int load_meta(segment_t* sgm, int meta_fd) {
     // TODO: this is very primitive.
-    const size_t size = sizeof(log_t);
-    ssize_t n = pread(meta_fd, lg, sizeof(*lg), 0);
+    const size_t size = sizeof(segment_t);
+    ssize_t n = pread(meta_fd, sgm, sizeof(*sgm), 0);
     if (n == 0) {
         // meta file is new and empty
-        lg->meta_fd = meta_fd;
+        sgm->meta_fd = meta_fd;
         return 0;
     }
 
     if ((size_t)n == size) {
-        lg->meta_fd = meta_fd;
+        sgm->meta_fd = meta_fd;
         return 0;
     }
     return -1;
 }
 
-static int sync_meta(const log_t* lg) {
+static int sync_meta(const segment_t* sgm) {
     // TODO: this is very primitive.
-    const size_t size = sizeof(log_t);
-    ssize_t n = pwrite(lg->meta_fd, lg, size, 0);
+    const size_t size = sizeof(segment_t);
+    ssize_t n = pwrite(sgm->meta_fd, sgm, size, 0);
     if (n < 0) {
         return -1;
     }
     return (size_t)n == size ? 0 : -1;
 }
 
-static uint64_t claim_woffset(log_t* lg, size_t size) {
+static uint64_t claim_woffset(segment_t* sgm, size_t size) {
     // TODO: this seems to generate a `lock cmpxchg` instruction.
     // Compare with `lock xadd`.
-    return __sync_fetch_and_add(&lg->w_offset, size);
+    return __sync_fetch_and_add(&sgm->w_offset, size);
 }
 
-log_t* log_open(const char* dir, uint64_t offset, size_t size) {
+segment_t* segment_open(const char* dir, uint64_t offset, size_t size) {
     // Size has to be a multiple of page size.
     if (size % pagesize() != 0) {
         return NULL;
     }
 
-    struct log* lg = (struct log*)malloc(sizeof(struct log));
-    if (!lg) {
+    struct segment* sgm = (struct segment*)malloc(sizeof(struct segment));
+    if (!sgm) {
         return NULL;
     }
 
-    // Initialize log struct
-    bzero(lg, sizeof(struct log));
+    // Initialize segment struct
+    bzero(sgm, sizeof(struct segment));
 
     // The meta file contains the contents
-    // of struct log for this particular log file.
+    // of struct segment for this particular segment file.
     // The file fill be created if it does
     // not exist.
     int meta_fd = open_meta(dir, offset);
     if (meta_fd < 0) {
-        free(lg);
+        free(sgm);
         return NULL;
     }
 
-    // Load the contents of the meta file into lg.
+    // Load the contents of the meta file into sgm.
     // This will only occur if the meta file is not new.
-    if (load_meta(lg, meta_fd) != 0) {
+    if (load_meta(sgm, meta_fd) != 0) {
         close(meta_fd);
-        free(lg);
+        free(sgm);
         return NULL;
     }
 
-    // The data file is the actual log file.
+    // The data file is the actual segment file.
     int data_fd = open_data(dir, offset, size);
     if (data_fd < 0) {
         close(meta_fd);
-        free(lg);
+        free(sgm);
         return NULL;
     }
 
-    lg->data_fd = data_fd;
+    sgm->data_fd = data_fd;
 
-    // Map the log file into memory.
+    // Map the segment file into memory.
     //
     // TODO: maybe mapping the whole file is not necessary.
     void* buffer = mmap(0,
@@ -198,74 +198,74 @@ log_t* log_open(const char* dir, uint64_t offset, size_t size) {
                         data_fd,
                         0);
     if (!buffer) {
-        close(lg->data_fd);
-        close(lg->meta_fd);
-        free(lg);
+        close(sgm->data_fd);
+        close(sgm->meta_fd);
+        free(sgm);
         return NULL;
     }
 
-    lg->buffer = buffer;
-    lg->size = size;
+    sgm->buffer = buffer;
+    sgm->size = size;
 
-    // Hint: the log file will mostly be accessed sequentially.
-    if (madvise(lg->buffer, size, MADV_SEQUENTIAL) != 0) {
-        munmap(lg->buffer, lg->size);
-        close(lg->data_fd);
-        close(lg->meta_fd);
-        free(lg);
+    // Hint: the segment file will mostly be accessed sequentially.
+    if (madvise(sgm->buffer, size, MADV_SEQUENTIAL) != 0) {
+        munmap(sgm->buffer, sgm->size);
+        close(sgm->data_fd);
+        close(sgm->meta_fd);
+        free(sgm);
         return NULL;
     }
 
-    return lg;
+    return sgm;
 }
 
-int log_close(log_t* lg) {
+int segment_close(segment_t* sgm) {
     // TODO: sync.
-    sync_meta(lg);
+    sync_meta(sgm);
 
     // Reclaim all resources.
-    munmap(lg->buffer, lg->size);
-    close(lg->data_fd);
-    close(lg->meta_fd);
-    free(lg);
+    munmap(sgm->buffer, sgm->size);
+    close(sgm->data_fd);
+    close(sgm->meta_fd);
+    free(sgm);
 
     // TODO: the directory may require fsyncing too.
 
     return 0;
 }
 
-ssize_t log_write(log_t* lg, const void* buf, size_t size) {
+ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
     // `buf` will be frame with a header,
-    // therefore the actually data inserted into the log
+    // therefore the actually data inserted into the segment
     // has size: header size + buf size
 
     const size_t header_size = sizeof(struct header);
     const size_t frame_size = size + header_size;
 
-    // This function will claim a slot in the log enough
+    // This function will claim a slot in the segment enough
     // to store the contents of `buf` + the header.
     // This call is thread safe.
     //
     // TODO: alignment
-    const uint64_t w_offset = claim_woffset(lg, frame_size);
+    const uint64_t w_offset = claim_woffset(sgm, frame_size);
 
     // Calculate the offset where to insert the payload
     const uint64_t payload_offset = w_offset + header_size;
 
     // The payload gets inserted before the header.
     // This is because the header contains a flags that
-    // indicates that the entire frame has been logged,
+    // indicates that the entire frame has been segmentged,
     // therefore it needs to be inserted last.
     //
     // TODO: Double check this, it may not be true.
     // See http://0b4af6cdc2f0c5998459-c0245c5c937c5dedcca3f1764ecc9b2f.r43.cf2.rackcdn.com/17780-osdi14-paper-pillai.pdf
 
-    memcpy(lg->buffer + payload_offset, buf, size);
+    memcpy(sgm->buffer + payload_offset, buf, size);
 
     struct header hdr;
     header_init(&hdr);
 
-    // Useful the check a log files data integrity.
+    // Useful to check a segment's file data integrity.
     //
     // TODO: is this really needed? Does a filesystem do this?
     hdr.crc32 = crc32((unsigned char*)buf, size);
@@ -277,22 +277,22 @@ ssize_t log_write(log_t* lg, const void* buf, size_t size) {
     hdr.flags = HEADER_FLAGS_READY;
 
     // The header gets copied into the buffer.
-    memcpy(lg->buffer + w_offset, &hdr, header_size);
+    memcpy(sgm->buffer + w_offset, &hdr, header_size);
 
     // Returns the number of byte of the initial buffer that
-    // have been inserted into the log.
+    // have been inserted into the segment.
     // The header is transparent to clients.
     return size;
 }
 
-int log_read(const log_t* lg, uint64_t offset, struct frame* fr) {
+int segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
     // Check that the offset is within the write boundary.
-    if (offset > lg->w_offset) {
+    if (offset > sgm->w_offset) {
         return -1;
     }
 
     // Assume there's a header.
-    struct header* hdr = (struct header*)(lg->buffer + offset);
+    struct header* hdr = (struct header*)(sgm->buffer + offset);
 
     // Verify `hdr` is a valid header
     if (hdr->flags != HEADER_FLAGS_READY) {
@@ -303,11 +303,11 @@ int log_read(const log_t* lg, uint64_t offset, struct frame* fr) {
 
     // No copy.
     const size_t header_size = sizeof(struct header);
-    fr->buffer = lg->buffer + offset + header_size;
+    fr->buffer = sgm->buffer + offset + header_size;
 
     return 0;
 }
 
-int log_destroy(const char* dir) {
+int segment_destroy(const char* dir) {
     return delete_directory(dir);
 }

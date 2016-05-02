@@ -305,9 +305,5 @@ ssize_t segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
     const size_t header_size = sizeof(struct header);
     fr->buffer = sgm->buffer + offset + header_size;
 
-    return fr->size - header_size;
-}
-
-int segment_destroy(const char* dir) {
-    return delete_directory(dir);
+    return fr->hdr->size - header_size;
 }

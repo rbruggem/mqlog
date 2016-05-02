@@ -1,5 +1,6 @@
 #include "testfw.h"
 #include <segment.h>
+#include <util.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -43,7 +44,7 @@ TEST(test_write_read) {
 
     ASSERT(segment_close(sgm) == 0);
 
-    ASSERT(segment_destroy(dir) == 0);
+    ASSERT(delete_directory(dir) == 0);
 }
 
 TEST(test_write_close_open_read) {
@@ -91,5 +92,5 @@ TEST(test_write_close_open_read) {
 
     ASSERT(segment_close(sgm) == 0);
 
-    ASSERT(segment_destroy(dir) == 0);
+    ASSERT(delete_directory(dir) == 0);
 }

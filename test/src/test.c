@@ -94,3 +94,37 @@ TEST(test_write_close_open_read) {
 
     ASSERT(delete_directory(dir) == 0);
 }
+
+TEST(test_write_segment_no_capacity) {
+    const size_t size = 4096;
+    const char* dir = "/tmp/test_write_segment_no_capacity";
+
+    segment_t* sgm = segment_open(dir, 0, size);
+    ASSERT(sgm);
+
+    const size_t block0_size = 3000;
+    unsigned char block0[block0_size];
+    ssize_t written = segment_write(sgm, block0, block0_size);
+    ASSERT((size_t)written == block0_size);
+
+    const size_t block1_size = 2000;
+    written = segment_write(sgm, block0, block1_size);
+    ASSERT(written == -1);
+
+    const size_t block2_size = 1055;
+    written = segment_write(sgm, block0, block2_size);
+    ASSERT(written == 1055);
+
+    const size_t block3_size = 5;
+    written = segment_write(sgm, block0, block3_size);
+    ASSERT(written == 5);
+
+    // segment full
+    const size_t block4_size = 1;
+    written = segment_write(sgm, block0, block4_size);
+    ASSERT(written == -1);
+
+    ASSERT(segment_close(sgm) == 0);
+
+    ASSERT(delete_directory(dir) == 0);
+}

@@ -242,12 +242,22 @@ ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
     const size_t header_size = sizeof(struct header);
     const size_t frame_size = size + header_size;
 
+    const uint64_t prev_w_offset = sgm->w_offset;
+
     // This function will claim a slot in the segment enough
     // to store the contents of `buf` + the header.
     // This call is thread safe.
     //
     // TODO: alignment
     const uint64_t w_offset = claim_woffset(sgm, frame_size);
+
+    // chech whether the segment has enough capacity left
+    if (w_offset + frame_size > sgm->size) {
+        // restore previous write offset
+        sgm->w_offset = prev_w_offset;
+
+        return -1;
+    }
 
     // Calculate the offset where to insert the payload
     const uint64_t payload_offset = w_offset + header_size;

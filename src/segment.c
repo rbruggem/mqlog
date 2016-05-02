@@ -285,7 +285,7 @@ ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
     return size;
 }
 
-int segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
+ssize_t segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
     // Check that the offset is within the write boundary.
     if (offset > sgm->w_offset) {
         return -1;
@@ -305,7 +305,7 @@ int segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
     const size_t header_size = sizeof(struct header);
     fr->buffer = sgm->buffer + offset + header_size;
 
-    return 0;
+    return fr->size - header_size;
 }
 
 int segment_destroy(const char* dir) {

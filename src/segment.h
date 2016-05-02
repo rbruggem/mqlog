@@ -14,7 +14,7 @@ int         segment_close(segment_t*);
 
 /* thread safe functions */
 ssize_t     segment_write(segment_t*, const void*, size_t);
-int         segment_read(const segment_t*, uint64_t, struct frame*);
+ssize_t     segment_read(const segment_t*, uint64_t, struct frame*);
 
 int         segment_destroy(const char*);
 

@@ -25,16 +25,16 @@ TEST(test_write_read) {
     uint64_t offset = 0;
     struct frame fr;
 
-    int rc = segment_read(sgm, offset, &fr);
-    ASSERT(rc == 0);
+    ssize_t read = segment_read(sgm, offset, &fr);
+    ASSERT((size_t)read == str_size);
 
     offset += fr.hdr->size;
     size_t payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    rc = segment_read(sgm, offset, &fr);
-    ASSERT(rc == 0);
+    read = segment_read(sgm, offset, &fr);
+    ASSERT((size_t)read == str2_size);
 
     offset += fr.hdr->size;
     payload_size = frame_payload_size(&fr);
@@ -71,8 +71,8 @@ TEST(test_write_close_open_read) {
     uint64_t offset = 0;
     struct frame fr;
 
-    int rc = segment_read(sgm, offset, &fr);
-    ASSERT(rc == 0);
+    ssize_t read = segment_read(sgm, offset, &fr);
+    ASSERT((size_t)read == n_size);
 
     offset += fr.hdr->size;
     size_t payload_size = frame_payload_size(&fr);
@@ -80,8 +80,8 @@ TEST(test_write_close_open_read) {
     int n_read = *(int*)fr.buffer;
     ASSERT(n == n_read);
 
-    rc = segment_read(sgm, offset, &fr);
-    ASSERT(rc == 0);
+    read = segment_read(sgm, offset, &fr);
+    ASSERT((size_t)read == d_size);
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == d_size);
     double d_read = *(double*)fr.buffer;

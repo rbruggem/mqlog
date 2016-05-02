@@ -262,22 +262,19 @@ ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
 
     memcpy(sgm->buffer + payload_offset, buf, size);
 
-    struct header hdr;
-    header_init(&hdr);
+    struct header* hdr = (struct header*)(sgm->buffer + w_offset);
+    header_init(hdr);
 
     // Useful to check a segment's file data integrity.
     //
     // TODO: is this really needed? Does a filesystem do this?
-    hdr.crc32 = crc32((unsigned char*)buf, size);
-    hdr.size = frame_size;
+    hdr->crc32 = crc32((unsigned char*)buf, size);
+    hdr->size = frame_size;
 
     // Marks content as ready to be consumed.
-    // This flag needed because w_offset is increment before
+    // This flag is needed because w_offset is incremented before
     // the new playload is inserted.
-    hdr.flags = HEADER_FLAGS_READY;
-
-    // The header gets copied into the buffer.
-    memcpy(sgm->buffer + w_offset, &hdr, header_size);
+    hdr->flags = HEADER_FLAGS_READY;
 
     // Returns the number of byte of the initial buffer that
     // have been inserted into the segment.

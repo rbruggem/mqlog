@@ -159,6 +159,7 @@ segment_t* segment_open(const char* dir, uint64_t offset, size_t size) {
 
     // Initialize segment struct
     bzero(sgm, sizeof(struct segment));
+    sgm->offset = offset;
 
     // The meta file contains the contents
     // of struct segment for this particular segment file.
@@ -234,10 +235,19 @@ int segment_close(segment_t* sgm) {
     return 0;
 }
 
+uint64_t segment_offset(const segment_t* sgm) {
+    return sgm->offset;
+}
+
+uint64_t segment_roffset(const segment_t* sgm) {
+    // Only what has been written can be read.
+    return sgm->w_offset + sgm->offset;
+}
+
 ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
     // `buf` will be frame with a header,
     // therefore the actually data inserted into the segment
-    // has size: header size + buf size
+    // has size: header size + buf size.
 
     const size_t header_size = sizeof(struct header);
     const size_t frame_size = size + header_size;
@@ -251,15 +261,15 @@ ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
     // TODO: alignment
     const uint64_t w_offset = claim_woffset(sgm, frame_size);
 
-    // chech whether the segment has enough capacity left
+    // chech whether the segment has enough capacity left.
     if (w_offset + frame_size > sgm->size) {
-        // restore previous write offset
+        // restore previous write offset.
         sgm->w_offset = prev_w_offset;
 
         return -1;
     }
 
-    // Calculate the offset where to insert the payload
+    // Calculate the offset where to insert the payload.
     const uint64_t payload_offset = w_offset + header_size;
 
     // The payload gets inserted before the header.
@@ -301,7 +311,7 @@ ssize_t segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
     // Assume there's a header.
     struct header* hdr = (struct header*)(sgm->buffer + offset);
 
-    // Verify `hdr` is a valid header
+    // Verify `hdr` is a valid header.
     if (hdr->flags != HEADER_FLAGS_READY) {
         return -1;
     }

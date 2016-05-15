@@ -12,6 +12,9 @@ typedef struct segment segment_t;
 segment_t*  segment_open(const char*, uint64_t, size_t);
 int         segment_close(segment_t*);
 
+uint64_t    segment_offset(const segment_t*);
+uint64_t    segment_roffset(const segment_t*);
+
 /* thread safe functions */
 ssize_t     segment_write(segment_t*, const void*, size_t);
 ssize_t     segment_read(const segment_t*, uint64_t, struct frame*);

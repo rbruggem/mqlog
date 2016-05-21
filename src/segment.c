@@ -131,6 +131,7 @@ static int load_meta_v0(segment_t* sgm,
 
     memcpy(sgm, buffer, segment_size);
     sgm->meta_fd = meta_fd;
+    sgm->version = LATEST_SEGMENT_VERSION;
 
     return 0;
 }

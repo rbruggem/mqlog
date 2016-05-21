@@ -14,7 +14,13 @@
 #define DATA_SUFFIX  "log"
 #define META_SUFFIX  "meta"
 
+#define LATEST_SEGMENT_VERSION 0
+
 struct segment {
+    // struct segment version.
+    // It is required to be the first 4 bytes of the struct.
+    unsigned int       version;
+
     int                meta_fd;
     int                data_fd;
     size_t             size;
@@ -22,7 +28,7 @@ struct segment {
     unsigned char*     buffer;
     volatile uint64_t  w_offset; // write offset
     volatile uint64_t  s_offset; // sync (to disk) offset
-};
+}; // 48 bytes
 
 static int meta_filename(char filename[], size_t len, uint64_t offset) {
     int n = snprintf(filename, len, "%jd.%s", offset, META_SUFFIX);
@@ -113,25 +119,53 @@ error:
     return -1;
 }
 
+static int load_meta_v0(segment_t* sgm,
+                      int meta_fd,
+                      unsigned char* buffer,
+                      size_t size) {
+
+    const size_t segment_size = sizeof(segment_t);
+    if (segment_size > size) {
+        return -1;
+    }
+
+    memcpy(sgm, buffer, segment_size);
+    sgm->meta_fd = meta_fd;
+
+    return 0;
+}
+
 static int load_meta(segment_t* sgm, int meta_fd) {
-    // TODO: this is very primitive.
-    const size_t size = sizeof(segment_t);
-    ssize_t n = pread(meta_fd, sgm, sizeof(*sgm), 0);
+    const size_t size = 64; // must be enough to hold struct segment
+    unsigned char buffer[size];
+
+    const ssize_t n = pread(meta_fd, buffer, size, 0);
+    if (n == -1) {
+        return -1;
+    }
+
+    // meta file is new and empty.
     if (n == 0) {
-        // meta file is new and empty
         sgm->meta_fd = meta_fd;
+        sgm->version = LATEST_SEGMENT_VERSION;
         return 0;
     }
 
-    if ((size_t)n == size) {
-        sgm->meta_fd = meta_fd;
-        return 0;
-    }
+    // First four bytes contain the version.
+    const unsigned int* segment_version = (unsigned int*)buffer;
+
+    switch (*segment_version) {
+        case 0:
+            return load_meta_v0(sgm, meta_fd, buffer, min((size_t)n, size));
+
+        default:
+            return -1;
+    };
+
     return -1;
 }
 
 static int sync_meta(const segment_t* sgm) {
-    // TODO: this is very primitive.
     const size_t size = sizeof(segment_t);
     ssize_t n = pwrite(sgm->meta_fd, sgm, size, 0);
     if (n < 0) {
@@ -163,7 +197,7 @@ segment_t* segment_open(const char* dir, uint64_t offset, size_t size) {
 
     // The meta file contains the contents
     // of struct segment for this particular segment file.
-    // The file fill be created if it does
+    // The file will be created if it does
     // not exist.
     int meta_fd = open_meta(dir, offset);
     if (meta_fd < 0) {

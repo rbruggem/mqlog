@@ -4,6 +4,9 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+#define max(x, y) ((x) > (y) ? (x) : (y))
+#define min(x, y) ((x) < (y) ? (x) : (y))
+
 int          pow2(uint64_t);
 size_t       pagesize() __attribute__((const));
 int          file_exists(const char*);

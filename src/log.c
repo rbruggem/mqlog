@@ -14,13 +14,13 @@ struct log {
     segment_t* empty;
 };
 
-static segment_t* next_segment(log_t* lg) {
-    segment_t* sgm = segment_open(lg->dir, lg->offset, lg->size);
-    if (sgm == NULL) {
-        return NULL;
+static int next_segment(segment_t** sgm, log_t* lg) {
+    int rc = segment_open(sgm, lg->dir, lg->offset, lg->size);
+    if (rc != 0) {
+        return rc;
     }
     lg->offset += lg->size;
-    return sgm;
+    return 0;
 }
 
 static segment_t* find_segment(const log_t* lg, uint64_t* offset) {
@@ -49,19 +49,19 @@ static segment_t* find_segment(const log_t* lg, uint64_t* offset) {
     return NULL;
 }
 
-log_t* log_open(const char* dir, size_t size) {
+int log_open(log_t** lg_ptr, const char* dir, size_t size) {
     // Size has to be a multiple of page size.
     if (size % pagesize() != 0) {
-        return NULL;
+        return ELNOPGM;
     }
 
     if (ensure_directory(dir) != 0) {
-        return NULL;
+        return ELLGDIR;
     }
 
     struct log* lg = (struct log*)malloc(sizeof(struct log));
     if (!lg) {
-        return NULL;
+        return ELALLC;
     }
 
     // Initialize segment struct.
@@ -71,22 +71,21 @@ log_t* log_open(const char* dir, size_t size) {
     strncpy(lg->dir, dir, MAX_DIR_SIZE);
 
     // prev will stay NULL for now.
-    lg->curr = next_segment(lg);
-    if (lg->curr == NULL) {
-        goto error;
+    int rc = next_segment(&lg->curr, lg);
+    if (rc != 0) {
+        log_close(lg);
+        return rc;
     }
 
-    lg->empty = next_segment(lg);
-    if (lg->empty == NULL) {
-        goto error;
+    rc = next_segment(&lg->empty, lg);
+    if (rc != 0) {
+        log_close(lg);
+        return rc;
     }
 
-    return lg;
+    *lg_ptr = lg;
 
-error:
-    log_close(lg);
-
-    return NULL;
+    return 0;
 }
 
 int log_close(log_t* lg) {
@@ -108,12 +107,12 @@ int log_close(log_t* lg) {
     }
 
     free(lg);
-    return errors == 0 ? 0 : -1;
+    return errors == 0 ? 0 : ELLGCLS;
 }
 
 int log_destroy(log_t* lg) {
     if (delete_directory(lg->dir) != 0) {
-        return -1;
+        return ELLGDTR;
     }
 
     return log_close(lg);
@@ -121,12 +120,14 @@ int log_destroy(log_t* lg) {
 
 ssize_t log_write(log_t* lg, const void* buf, size_t size) {
     ssize_t written = segment_write(lg->curr, buf, size);
-    if (written == -1) {
+    if (written == ELNOWCP) {
         // segment has no capacity left
-        // TODO: use error code.
         lg->prev = lg->curr;
         lg->curr = lg->empty;
-        lg->empty = next_segment(lg);
+        int rc = next_segment(&lg->empty, lg);
+        if (rc != 0) {
+            return rc;
+        }
 
         return segment_write(lg->curr, buf, size);
     }
@@ -137,7 +138,7 @@ ssize_t log_write(log_t* lg, const void* buf, size_t size) {
 ssize_t log_read(const log_t* lg, uint64_t offset, struct frame* fr) {
     const segment_t* sgm = find_segment(lg, &offset);
     if (sgm == NULL) {
-        return -1;
+        return ELSGNTF;
     }
 
     // TODO, if size is poweroff two, a bitmask can be used.

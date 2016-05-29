@@ -9,7 +9,7 @@
 typedef struct segment segment_t;
 
 /* non thread safe functions */
-segment_t*  segment_open(const char*, uint64_t, size_t);
+int         segment_open(segment_t**, const char*, uint64_t, size_t);
 int         segment_close(segment_t*);
 
 uint64_t    segment_offset(const segment_t*);

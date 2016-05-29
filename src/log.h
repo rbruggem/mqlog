@@ -3,11 +3,12 @@
 
 #include <sys/types.h>
 #include <prot.h>
+#include <logerrno.h>
 
 typedef struct log log_t;
 
 /* non thread safe functions */
-log_t*  log_open(const char*, size_t);
+int     log_open(log_t**, const char*, size_t);
 int     log_close(log_t*);
 int     log_destroy(log_t*);
 

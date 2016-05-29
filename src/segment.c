@@ -1,6 +1,7 @@
 #include "segment.h"
 #include "prot.h"
 #include "util.h"
+#include "logerrno.h"
 #include <string.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -44,17 +45,17 @@ static int open_meta(const char* dir, uint64_t offset) {
     const size_t len0 = 64;
     char filename[len0];
     if (meta_filename(filename, len0, offset) == -1) {
-        return -1;
+        return ELSOFLW;
     }
 
     if (ensure_directory(dir) != 0) {
-        return -1;
+        return ELLGDIR;
     }
 
     const size_t len1 = 256;
     char file[len1];
     if (append_file_to_dir(file, len1, dir, filename) == -1) {
-        return -1;
+        return ELSOFLW;
     }
 
     // File contains the fullpath of the meta file.
@@ -62,7 +63,7 @@ static int open_meta(const char* dir, uint64_t offset) {
                   O_RDWR | O_CREAT,
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (fd < 0) {
-        return -1;
+        return ELFLEOP;
     }
 
     return fd;
@@ -72,17 +73,17 @@ static int open_data(const char* dir, uint64_t offset, size_t size) {
     const size_t len0 = 64;
     char filename[len0];
     if (data_filename(filename, len0, offset) == -1) {
-        return -1;
+        return ELSOFLW;
     }
 
     if (ensure_directory(dir) != 0) {
-        return -1;
+        return ELFLEOP;
     }
 
     const size_t len1 = 256;
     char file[len1];
     if (append_file_to_dir(file, len1, dir, filename) == -1) {
-        return -1;
+        return ELSOFLW;
     }
 
     // file contains the fullpath of the segment file
@@ -90,7 +91,7 @@ static int open_data(const char* dir, uint64_t offset, size_t size) {
                   O_RDWR | O_CREAT,
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (fd < 0) {
-        return -1;
+        return ELFLEOP;
     }
 
     struct stat file_stat;
@@ -116,7 +117,7 @@ error:
         close(fd);
     }
 
-    return -1;
+    return ELFLEOP;
 }
 
 static int load_meta_v0(segment_t* sgm,
@@ -160,19 +161,19 @@ static int load_meta(segment_t* sgm, int meta_fd) {
             return load_meta_v0(sgm, meta_fd, buffer, min((size_t)n, size));
 
         default:
-            return -1;
+            return ELSGRMT;
     };
 
-    return -1;
+    return ELSGRMT;
 }
 
 static int sync_meta(const segment_t* sgm) {
     const size_t size = sizeof(segment_t);
     ssize_t n = pwrite(sgm->meta_fd, sgm, size, 0);
     if (n < 0) {
-        return -1;
+        return ELSGSMT;
     }
-    return (size_t)n == size ? 0 : -1;
+    return (size_t)n == size ? 0 : ELSGSMT;
 }
 
 static uint64_t claim_woffset(segment_t* sgm, size_t size) {
@@ -181,15 +182,18 @@ static uint64_t claim_woffset(segment_t* sgm, size_t size) {
     return __sync_fetch_and_add(&sgm->w_offset, size);
 }
 
-segment_t* segment_open(const char* dir, uint64_t offset, size_t size) {
+int segment_open(segment_t** sgm_ptr,
+                 const char* dir,
+                 uint64_t offset,
+                 size_t size) {
     // Size has to be a multiple of page size.
     if (size % pagesize() != 0) {
-        return NULL;
+        return ELNOPGM;
     }
 
     struct segment* sgm = (struct segment*)malloc(sizeof(struct segment));
     if (!sgm) {
-        return NULL;
+        return ELALLC;
     }
 
     // Initialize segment struct
@@ -203,15 +207,16 @@ segment_t* segment_open(const char* dir, uint64_t offset, size_t size) {
     int meta_fd = open_meta(dir, offset);
     if (meta_fd < 0) {
         free(sgm);
-        return NULL;
+        return meta_fd;
     }
 
     // Load the contents of the meta file into sgm.
     // This will only occur if the meta file is not new.
-    if (load_meta(sgm, meta_fd) != 0) {
+    int rc = load_meta(sgm, meta_fd);
+    if (rc != 0) {
         close(meta_fd);
         free(sgm);
-        return NULL;
+        return rc;
     }
 
     // The data file is the actual segment file.
@@ -219,7 +224,7 @@ segment_t* segment_open(const char* dir, uint64_t offset, size_t size) {
     if (data_fd < 0) {
         close(meta_fd);
         free(sgm);
-        return NULL;
+        return data_fd;
     }
 
     sgm->data_fd = data_fd;
@@ -237,7 +242,7 @@ segment_t* segment_open(const char* dir, uint64_t offset, size_t size) {
         close(sgm->data_fd);
         close(sgm->meta_fd);
         free(sgm);
-        return NULL;
+        return ELMMAP;
     }
 
     sgm->buffer = buffer;
@@ -249,10 +254,12 @@ segment_t* segment_open(const char* dir, uint64_t offset, size_t size) {
         close(sgm->data_fd);
         close(sgm->meta_fd);
         free(sgm);
-        return NULL;
+        return ELMADV;
     }
 
-    return sgm;
+    *sgm_ptr = sgm;
+
+    return 0;
 }
 
 int segment_close(segment_t* sgm) {
@@ -301,7 +308,7 @@ ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
         // restore previous write offset.
         sgm->w_offset = prev_w_offset;
 
-        return -1;
+        return ELNOWCP;
     }
 
     // Calculate the offset where to insert the payload.
@@ -340,7 +347,7 @@ ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
 ssize_t segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
     // Check that the offset is within the write boundary.
     if (offset > sgm->w_offset) {
-        return -1;
+        return ELNORD;
     }
 
     // Assume there's a header.
@@ -348,7 +355,7 @@ ssize_t segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
 
     // Verify `hdr` is a valid header.
     if (hdr->flags != HEADER_FLAGS_READY) {
-        return -1;
+        return ELINVHD;
     }
 
     fr->hdr = hdr;

@@ -146,3 +146,7 @@ ssize_t log_read(const log_t* lg, uint64_t offset, struct frame* fr) {
 
     return segment_read(sgm, relative_offset, fr);
 }
+
+ssize_t log_sync(const log_t* lg) {
+    return segment_sync(lg->curr);
+}

@@ -15,5 +15,6 @@ int     log_destroy(log_t*);
 /* thread safe functions */
 ssize_t log_write(log_t*, const void*, size_t);
 ssize_t log_read(const log_t*, uint64_t, struct frame*);
+ssize_t log_sync(const log_t*);
 
 #endif

@@ -173,6 +173,12 @@ static int sync_meta(const segment_t* sgm) {
     if (n < 0) {
         return ELSGSMT;
     }
+
+    int rc = fdatasync(sgm->meta_fd);
+    if (rc != 0) {
+        return ELMTSYN;
+    }
+
     return (size_t)n == size ? 0 : ELSGSMT;
 }
 
@@ -263,8 +269,15 @@ int segment_open(segment_t** sgm_ptr,
 }
 
 int segment_close(segment_t* sgm) {
-    // TODO: sync.
-    sync_meta(sgm);
+    int rc = segment_sync(sgm);
+    if (rc < 0) {
+        return rc;
+    }
+
+    rc = sync_meta(sgm);
+    if (rc != 0) {
+        return rc;
+    }
 
     // Reclaim all resources.
     munmap(sgm->buffer, sgm->size);
@@ -365,4 +378,22 @@ ssize_t segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
     fr->buffer = sgm->buffer + offset + header_size;
 
     return fr->hdr->size - header_size;
+}
+
+ssize_t segment_sync(segment_t* sgm) {
+    const void* addr = &sgm->buffer[sgm->s_offset];
+    const size_t size = sgm->w_offset - sgm->s_offset;
+
+    // addr needs to be a multiple of pagesize for msync to work.
+    void* sync_addr = (void*)page_aligned_addr((size_t)addr);
+    const size_t diff = (size_t)addr - (size_t)sync_addr;
+    const size_t sync_size = size + diff;
+
+    if (msync(sync_addr, sync_size, MS_SYNC) != 0) {
+        return ELDTSYN;
+    }
+
+    sgm->s_offset = sgm->w_offset;
+
+    return sync_size;
 }

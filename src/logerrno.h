@@ -18,5 +18,7 @@
 #define ELLGCLS -15 // closing log error
 #define ELLGDTR -16 // destroy log error
 #define ELSGNTF -17 // segment not found
+#define ELDTSYN -18 // segment sync error
+#define ELMTSYN -19 // segment sync error
 
 #endif

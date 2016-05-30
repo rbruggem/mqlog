@@ -1578,7 +1578,6 @@ TEST(test_log_single_write_greater_segment_size) {
         0x90, 0x9a, 0x6e, 0xca, 0xa4, 0x65, 0x78, 0xb0
     };
 
-    // write first time, no overflow
     ssize_t written = log_write(lg, payload, payload_size);
     ASSERT(written == ELNOWCP);
 

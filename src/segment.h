@@ -8,8 +8,16 @@
 
 typedef struct segment segment_t;
 
+
+#define SGM_RDDRT 0x0
+#define SGM_RDCMT 0x1
+
 /* non thread safe functions */
-int         segment_open(segment_t**, const char*, uint64_t, size_t);
+int         segment_open(segment_t**,
+                         const char*,
+                         uint64_t,
+                         size_t,
+                         unsigned int);
 int         segment_close(segment_t*);
 
 uint64_t    segment_offset(const segment_t*);

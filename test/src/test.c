@@ -12,7 +12,7 @@ TEST(test_segment_write_read) {
     const const char* dir = "/tmp/test_segment_write_read";
 
     segment_t* sgm = NULL;
-    int rc = segment_open(&sgm, dir, 0, size);
+    int rc = segment_open(&sgm, dir, 0, size, 0);
     ASSERT(rc == 0);
     ASSERT(sgm);
 
@@ -55,7 +55,7 @@ TEST(test_segment_write_close_open_read) {
     const const char* dir = "/tmp/test_segment_write_close_open_read/";
 
     segment_t* sgm = NULL;
-    int rc = segment_open(&sgm, dir, 0, size);
+    int rc = segment_open(&sgm, dir, 0, size, 0);
     ASSERT(rc == 0);
     ASSERT(sgm);
 
@@ -72,7 +72,7 @@ TEST(test_segment_write_close_open_read) {
     ASSERT(segment_close(sgm) == 0);
 
     sgm = NULL;
-    rc = segment_open(&sgm, dir, 0, size);
+    rc = segment_open(&sgm, dir, 0, size, 0);
     ASSERT(rc == 0);
     ASSERT(sgm);
 
@@ -107,7 +107,7 @@ TEST(test_segment_write_no_capacity) {
     const char* dir = "/tmp/test_segment_write_no_capacity";
 
     segment_t* sgm = NULL;
-    int rc =  segment_open(&sgm, dir, 0, size);
+    int rc =  segment_open(&sgm, dir, 0, size, 0);
     ASSERT(rc == 0);
     ASSERT(sgm);
 
@@ -143,7 +143,7 @@ TEST(test_log_write_read) {
     const const char* dir = "/tmp/test_log_write_read";
 
     log_t* lg = NULL;
-    int rc = log_open(&lg, dir, size);
+    int rc = log_open(&lg, dir, size, 0);
     ASSERT(rc == 0);
     ASSERT(lg);
 
@@ -184,7 +184,7 @@ TEST(test_log_write_close_open_read) {
     const const char* dir = "/tmp/test_log_write_close_open_read";
 
     log_t* lg = NULL;
-    int rc = log_open(&lg, dir, size);
+    int rc = log_open(&lg, dir, size, 0);
     ASSERT(rc == 0);
     ASSERT(lg);
 
@@ -201,7 +201,7 @@ TEST(test_log_write_close_open_read) {
     ASSERT(log_close(lg) == 0);
 
     lg = NULL;
-    rc = log_open(&lg, dir, size);
+    rc = log_open(&lg, dir, size, 0);
     ASSERT(rc == 0);
     ASSERT(lg);
 
@@ -234,7 +234,7 @@ TEST(test_log_write_overflow_read) {
     const const char* dir = "/tmp/test_log_write_overflow_read";
 
     log_t* lg = NULL;
-    int rc = log_open(&lg, dir, size);
+    int rc = log_open(&lg, dir, size, 0);
     ASSERT(rc == 0);
     ASSERT(lg);
 
@@ -290,7 +290,7 @@ TEST(test_log_single_write_greater_segment_size) {
     const const char* dir = "/tmp/test_log_single_write_greater_segment_size";
 
     log_t* lg = NULL;
-    int rc = log_open(&lg, dir, size);
+    int rc = log_open(&lg, dir, size, 0);
     ASSERT(rc == 0);
     ASSERT(lg);
 
@@ -1580,6 +1580,62 @@ TEST(test_log_single_write_greater_segment_size) {
 
     ssize_t written = log_write(lg, payload, payload_size);
     ASSERT(written == ELNOWCP);
+
+    ASSERT(log_destroy(lg) == 0);
+}
+
+TEST(test_segment_gateing) {
+    const size_t size = 4096;
+    const const char* dir = "/tmp/test_segment_gating";
+
+    log_t* lg = NULL;
+    int rc = log_open(&lg, dir, size, LOG_RDCMT);
+    ASSERT(rc == 0);
+    ASSERT(lg);
+
+    const size_t data_size = 1 << 6; // 64 bytes
+    const unsigned char data[] = {
+        0xd5, 0x87, 0x9d, 0x71, 0x51, 0xff, 0xa5, 0x9a,
+        0x22, 0xde, 0x91, 0x3e, 0x7a, 0x6d, 0x46, 0x73,
+        0xb4, 0xd6, 0xa5, 0x55, 0x1d, 0x8a, 0x44, 0x65,
+        0xd0, 0x55, 0x38, 0x43, 0x3f, 0x1e, 0x5c, 0x9b,
+        0xac, 0x7b, 0xd9, 0xb4, 0x26, 0xb0, 0x18, 0x56,
+        0xb1, 0x65, 0xef, 0xde, 0x57, 0x7d, 0xb8, 0x46,
+        0x3e, 0x4d, 0x65, 0x40, 0x5c, 0xc8, 0x8f, 0xc0,
+        0x84, 0x8a, 0xb0, 0xcb, 0x41, 0x98, 0xca, 0xa1
+    };
+
+    ssize_t written = log_write(lg, data, data_size);
+    ASSERT(data_size == (size_t)written);
+
+    uint64_t offset = 0;
+    struct frame fr;
+
+    ssize_t read = log_read(lg, offset, &fr);
+    ASSERT(read == ELNORD);
+
+    ssize_t synced = log_sync(lg);
+    ASSERT((size_t)synced == written + sizeof(*(fr.hdr)));
+
+    written = log_write(lg, data, data_size);
+    ASSERT(data_size == (size_t)written);
+
+    read = log_read(lg, offset, &fr);
+    ASSERT((size_t)read == data_size);
+    offset += fr.hdr->size;
+    size_t payload_size = frame_payload_size(&fr);
+    ASSERT(payload_size == data_size);
+
+    read = log_read(lg, offset, &fr);
+    ASSERT(read == ELNORD);
+
+    synced = log_sync(lg);
+    ASSERT(synced > 0);
+
+    read = log_read(lg, offset, &fr);
+    ASSERT((size_t)read == data_size);
+    payload_size = frame_payload_size(&fr);
+    ASSERT(payload_size == data_size);
 
     ASSERT(log_destroy(lg) == 0);
 }

@@ -6,16 +6,22 @@
 enum { MAX_DIR_SIZE = 1024 };
 
 struct log {
-    size_t     size;
-    uint64_t   offset;
-    char       dir[MAX_DIR_SIZE];
-    segment_t* prev;
-    segment_t* curr;
-    segment_t* empty;
+    size_t       size;
+    unsigned int flags;
+    uint64_t     offset;
+    char         dir[MAX_DIR_SIZE];
+    segment_t*   prev;
+    segment_t*   curr;
+    segment_t*   empty;
 };
 
 static int next_segment(segment_t** sgm, log_t* lg) {
-    int rc = segment_open(sgm, lg->dir, lg->offset, lg->size);
+    unsigned int flags = SGM_RDDRT;
+    if ((lg->flags & LOG_RDCMT) == LOG_RDCMT) {
+        flags = SGM_RDCMT;
+    }
+
+    int rc = segment_open(sgm, lg->dir, lg->offset, lg->size, flags);
     if (rc != 0) {
         return rc;
     }
@@ -49,7 +55,7 @@ static segment_t* find_segment(const log_t* lg, uint64_t* offset) {
     return NULL;
 }
 
-int log_open(log_t** lg_ptr, const char* dir, size_t size) {
+int log_open(log_t** lg_ptr, const char* dir, size_t size, unsigned int flags) {
     // Size has to be a multiple of page size.
     if (size % pagesize() != 0) {
         return ELNOPGM;
@@ -69,6 +75,8 @@ int log_open(log_t** lg_ptr, const char* dir, size_t size) {
     lg->size = size;
     lg->offset = 0;
     strncpy(lg->dir, dir, MAX_DIR_SIZE);
+
+    lg->flags = flags;
 
     // prev will stay NULL for now.
     int rc = next_segment(&lg->curr, lg);

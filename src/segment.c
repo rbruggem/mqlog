@@ -22,6 +22,8 @@ struct segment {
     // It is required to be the first 4 bytes of the struct.
     unsigned int       version;
 
+    unsigned int       flags;
+
     int                meta_fd;
     int                data_fd;
     size_t             size;
@@ -191,7 +193,8 @@ static uint64_t claim_woffset(segment_t* sgm, size_t size) {
 int segment_open(segment_t** sgm_ptr,
                  const char* dir,
                  uint64_t offset,
-                 size_t size) {
+                 size_t size,
+                 unsigned int flags) {
     // Size has to be a multiple of page size.
     if (size % pagesize() != 0) {
         return ELNOPGM;
@@ -215,6 +218,9 @@ int segment_open(segment_t** sgm_ptr,
         free(sgm);
         return meta_fd;
     }
+
+    // flags are overwritten.
+    sgm->flags = flags;
 
     // Load the contents of the meta file into sgm.
     // This will only occur if the meta file is not new.
@@ -358,8 +364,13 @@ ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
 }
 
 ssize_t segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
-    // Check that the offset is within the write boundary.
-    if (offset > sgm->w_offset) {
+    uint64_t boundary = sgm->w_offset;
+    if ((sgm->flags & SGM_RDCMT) == SGM_RDCMT) {
+        boundary = sgm->s_offset;
+    }
+
+    // Check that the offset is within the right boundary.
+    if (offset >= boundary) {
         return ELNORD;
     }
 

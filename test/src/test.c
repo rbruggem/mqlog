@@ -1584,7 +1584,7 @@ TEST(test_log_single_write_greater_segment_size) {
     ASSERT(log_destroy(lg) == 0);
 }
 
-TEST(test_segment_gateing) {
+TEST(test_segment_gating) {
     const size_t size = 4096;
     const const char* dir = "/tmp/test_segment_gating";
 

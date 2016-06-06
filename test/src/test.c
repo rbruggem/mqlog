@@ -1,11 +1,15 @@
 #include "testfw.h"
 #include <segment.h>
+#include <pthread.h>
 #include <log.h>
 #include <util.h>
+#include <time.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <inttypes.h>
+
+#include <assert.h>
 
 TEST(test_segment_write_read) {
     const size_t size = 10485760; // 10 MB
@@ -116,22 +120,22 @@ TEST(test_segment_write_no_capacity) {
     ssize_t written = segment_write(sgm, block0, block0_size);
     ASSERT((size_t)written == block0_size);
 
-    const size_t block1_size = 2000;
+    const size_t block1_size = 1000;
     written = segment_write(sgm, block0, block1_size);
-    ASSERT(written == ELNOWCP);
+    ASSERT(written == 1000);
 
-    const size_t block2_size = 1055;
+    const size_t block2_size = 1100;
     written = segment_write(sgm, block0, block2_size);
-    ASSERT(written == 1055);
+    ASSERT(written == ELEOS);
 
     const size_t block3_size = 5;
     written = segment_write(sgm, block0, block3_size);
-    ASSERT(written == 5);
+    ASSERT(written == ELEOS);
 
     // segment full
-    const size_t block4_size = 1;
+    const size_t block4_size = 3000;
     written = segment_write(sgm, block0, block4_size);
-    ASSERT(written == ELNOWCP);
+    ASSERT(written == ELEOS);
 
     ASSERT(segment_close(sgm) == 0);
 
@@ -160,7 +164,7 @@ TEST(test_log_write_read) {
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, offset, &fr);
+    ssize_t read = log_read(lg, &offset, &fr);
     ASSERT((size_t)read == str_size);
 
     offset += fr.hdr->size;
@@ -168,7 +172,7 @@ TEST(test_log_write_read) {
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    read = log_read(lg, offset, &fr);
+    read = log_read(lg, &offset, &fr);
     ASSERT((size_t)read == str2_size);
 
     offset += fr.hdr->size;
@@ -208,7 +212,7 @@ TEST(test_log_write_close_open_read) {
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, offset, &fr);
+    ssize_t read = log_read(lg, &offset, &fr);
     ASSERT((size_t)read == n_size);
 
     offset += fr.hdr->size;
@@ -217,7 +221,7 @@ TEST(test_log_write_close_open_read) {
     int n_read = *(int*)fr.buffer;
     ASSERT(n == n_read);
 
-    read = log_read(lg, offset, &fr);
+    read = log_read(lg, &offset, &fr);
     ASSERT((size_t)read == d_size);
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == d_size);
@@ -307,7 +311,7 @@ TEST(test_log_write_overflow_read) {
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, offset, &fr);
+    ssize_t read = log_read(lg, &offset, &fr);
     ASSERT((size_t)read == str_size);
 
     offset += fr.hdr->size;
@@ -315,7 +319,7 @@ TEST(test_log_write_overflow_read) {
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    read = log_read(lg, offset, &fr);
+    read = log_read(lg, &offset, &fr);
     ASSERT((size_t)read == str_size);
 
     offset += fr.hdr->size;
@@ -323,7 +327,7 @@ TEST(test_log_write_overflow_read) {
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    read = log_read(lg, offset, &fr);
+    read = log_read(lg, &offset, &fr);
     ASSERT((size_t)read == str_size);
 
     offset += fr.hdr->size;
@@ -1660,7 +1664,7 @@ TEST(test_segment_gating) {
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, offset, &fr);
+    ssize_t read = log_read(lg, &offset, &fr);
     ASSERT(read == ELNORD);
 
     ssize_t synced = log_sync(lg);
@@ -1669,22 +1673,136 @@ TEST(test_segment_gating) {
     written = log_write(lg, data, data_size);
     ASSERT(data_size == (size_t)written);
 
-    read = log_read(lg, offset, &fr);
+    read = log_read(lg, &offset, &fr);
     ASSERT((size_t)read == data_size);
     offset += fr.hdr->size;
     size_t payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == data_size);
 
-    read = log_read(lg, offset, &fr);
+    read = log_read(lg, &offset, &fr);
     ASSERT(read == ELNORD);
 
     synced = log_sync(lg);
     ASSERT(synced > 0);
 
-    read = log_read(lg, offset, &fr);
+    read = log_read(lg, &offset, &fr);
     ASSERT((size_t)read == data_size);
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == data_size);
+
+    ASSERT(log_destroy(lg) == 0);
+}
+
+struct string {
+    size_t len;
+    char   str[128];
+};
+
+static char* rand_string(char* str, size_t size) {
+    const char charset[] = "abcdefghijklmnopqrstuvwxyz";
+    if (size) {
+        --size;
+        for (size_t n = 0; n < size; n++) {
+            int key = rand() % (int)(sizeof charset - 1);
+            str[n] = charset[key];
+        }
+        str[size] = '\0';
+    }
+    return str;
+}
+
+struct thread_args {
+    log_t*        lg;
+    struct string data[128];
+};
+
+void* producer(void* arg) {
+    struct thread_args* args = (struct thread_args*)arg;
+    log_t* lg = (log_t*)args->lg;
+
+    srand(time(NULL));
+
+    for (size_t i = 0; i < 128; ++i) {
+        struct string* sstr = &args->data[i];
+        sstr->len = rand() % 128;
+        rand_string(sstr->str, sstr->len);
+
+        log_write(lg, sstr->str, sstr->len);
+    }
+
+    printf("producer done\n");
+
+    return NULL;
+}
+
+void* consumer(void* arg) {
+    struct thread_args* args = (struct thread_args*)arg;
+    log_t* lg = (log_t*)args->lg;
+
+    uint64_t offset = 0;
+    struct frame fr;
+
+    for (size_t i = 0; i < 128; ++i) {
+        printf("\n-> try %"PRId64", %d\n", offset, i);
+        ssize_t read = log_read(lg, &offset, &fr);
+        printf("after %"PRId64", %d %zd\n", offset, i, read);
+        if (read == ELNORD || read == ELINVHD) {
+            sched_yield();
+            --i;
+        } else {
+            offset += fr.hdr->size;
+            struct string* sstr = &args->data[i];
+            sstr->len = frame_payload_size(&fr);
+            memcpy(sstr->str, fr.buffer, sstr->len);
+            printf("GOT IT %"PRId64", %d, size %d\n", offset, i, fr.hdr->size);
+        }
+    }
+
+    printf("consumer done\n");
+
+    return NULL;
+}
+
+TEST(test_concurrency) {
+    const size_t size = 4096;
+    const const char* dir = "/tmp/test_concurrency";
+
+    // TODO remove this line
+    delete_directory(dir);
+
+    log_t* lg = NULL;
+    int rc = log_open(&lg, dir, size, 0);
+    ASSERT(rc == 0);
+    ASSERT(lg);
+
+    struct thread_args prod_args = {
+        .lg = lg
+    };
+
+    struct thread_args cons_args = {
+        .lg = lg
+    };
+
+    pthread_t prod0, cons0;
+
+    rc = pthread_create(&prod0, NULL, producer, (void*)&prod_args);
+    ASSERT(rc == 0);
+
+    rc = pthread_create(&cons0, NULL, consumer, (void*)&cons_args);
+    ASSERT(rc == 0);
+
+    rc = pthread_join(prod0, NULL);
+    ASSERT(rc == 0);
+    rc = pthread_join(cons0, NULL);
+    ASSERT(rc == 0);
+
+    for (int i = 0; i < 128; ++i) {
+        printf("------------------------\n");
+        printf(">>>>> %d|%s\n", prod_args.data[i].len, prod_args.data[i].str);
+        printf("<<<<< %d|%s\n", cons_args.data[i].len, cons_args.data[i].str);
+        ASSERT(prod_args.data[i].len == cons_args.data[i].len);
+        ASSERT(strncmp(prod_args.data[i].str, cons_args.data[i].str, prod_args.data[i].len) == 0);
+    }
 
     ASSERT(log_destroy(lg) == 0);
 }

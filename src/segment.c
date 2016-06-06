@@ -184,10 +184,18 @@ static int sync_meta(const segment_t* sgm) {
     return (size_t)n == size ? 0 : ELSGSMT;
 }
 
-static uint64_t claim_woffset(segment_t* sgm, size_t size) {
-    // TODO: this seems to generate a `lock cmpxchg` instruction.
-    // Compare with `lock xadd`.
-    return __sync_fetch_and_add(&sgm->w_offset, size);
+static int marked_eos(const segment_t* sgm) {
+    const size_t header_size = sizeof(struct header);
+    if (sgm->w_offset < header_size) {
+        return 0;
+    }
+
+    const uint64_t last_header_offset = sgm->w_offset - header_size;
+
+    const struct header* hdr =
+        (const struct header*)(sgm->buffer + last_header_offset);
+
+    return hdr->flags == HEADER_FLAGS_EOS;
 }
 
 int segment_open(segment_t** sgm_ptr,
@@ -306,28 +314,50 @@ uint64_t segment_roffset(const segment_t* sgm) {
 }
 
 ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
+    // First of all check is the segment is writable.
+    if (marked_eos(sgm)) {
+        return ELEOS;
+    }
+
     // `buf` will be frame with a header,
     // therefore the actually data inserted into the segment
     // has size: header size + buf size.
-
     const size_t header_size = sizeof(struct header);
     const size_t frame_size = size + header_size;
 
-    const uint64_t prev_w_offset = sgm->w_offset;
+    const uint64_t w_offset = sgm->w_offset;
 
-    // This function will claim a slot in the segment enough
-    // to store the contents of `buf` + the header.
-    // This call is thread safe.
-    //
-    // TODO: alignment
-    const uint64_t w_offset = claim_woffset(sgm, frame_size);
+    // Make sure there's always available space in to include
+    // and End Of Segment frame.
+    // To enforce this, a payload can only be inserted if:
+    // sizeof(payload) + 2 * sizeof(header) <= space left in segment.
+    if (header_size + frame_size > sgm->size - w_offset) {
 
-    // chech whether the segment has enough capacity left.
-    if (w_offset + frame_size > sgm->size) {
-        // restore previous write offset.
-        sgm->w_offset = prev_w_offset;
+        // No more entries in this segment: add EOS frame.
+        if (!__sync_bool_compare_and_swap(
+            &sgm->w_offset,
+            w_offset,
+            w_offset + header_size)) {
 
-        return ELNOWCP;
+            return ELLOCK;
+        }
+
+        struct header* hdr = (struct header*)(sgm->buffer + w_offset);
+        header_init(hdr);
+        hdr->size = header_size;
+
+        // Mark segment as complete for writes.
+        hdr->flags = HEADER_FLAGS_EOS;
+
+        return ELEOS;
+    }
+
+    if (!__sync_bool_compare_and_swap(
+        &sgm->w_offset,
+        w_offset,
+        w_offset + frame_size)) {
+
+        return ELLOCK;
     }
 
     // Calculate the offset where to insert the payload.
@@ -340,7 +370,6 @@ ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
     //
     // TODO: Double check this, it may not be true.
     // See http://0b4af6cdc2f0c5998459-c0245c5c937c5dedcca3f1764ecc9b2f.r43.cf2.rackcdn.com/17780-osdi14-paper-pillai.pdf
-
     memcpy(sgm->buffer + payload_offset, buf, size);
 
     struct header* hdr = (struct header*)(sgm->buffer + w_offset);
@@ -378,8 +407,20 @@ ssize_t segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
     struct header* hdr = (struct header*)(sgm->buffer + offset);
 
     // Verify `hdr` is a valid header.
-    if (hdr->flags != HEADER_FLAGS_READY) {
-        return ELINVHD;
+    switch (hdr->flags) {
+        case HEADER_FLAGS_READY:
+            break;
+
+        case HEADER_FLAGS_EOS:
+            fr->hdr = hdr;
+            return ELEOS;
+
+        case HEADER_FLAGS_EMPTY:
+            return ELINVHD;
+
+        default:
+            return ELINVHD;
+
     }
 
     fr->hdr = hdr;
@@ -407,4 +448,8 @@ ssize_t segment_sync(segment_t* sgm) {
     sgm->s_offset = sgm->w_offset;
 
     return sync_size;
+}
+
+size_t segment_unused(const segment_t* sgm) {
+    return sgm->size - sgm->w_offset;
 }

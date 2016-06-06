@@ -31,9 +31,16 @@ struct header {
     uint32_t crc32;
 };
 
-#define HEADER_FLAGS_EMPTY 0x00
-#define HEADER_FLAGS_READY 0xbeef  // marks that the header and payload
-                                   // is ready to be consumed
+#define HEADER_FLAGS_EMPTY 0x0000
+ // Marks that the header and payload is ready to be consumed.
+#define HEADER_FLAGS_READY 0xbeef
+// End Of Segment (EOS)
+// An EOS frame is required when a producer claims a write offset
+// but fails to write because the segment does not have enough
+// contiguous space available to hold the new frame with its payload.
+// The write offset has already been claimed and needs to be used.
+#define HEADER_FLAGS_EOS 0xaaaa
+
 
 #define HEADER_VERSION     0x0
 

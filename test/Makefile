@@ -2,8 +2,8 @@ SRC=src
 
 LOGLIBPATH:=../src
 
-CFLAGS+=-O0 -g -I$(LOGLIBPATH)
-LIBS+=-llog
+CFLAGS+=-O0 -g -I$(LOGLIBPATH) -pthread
+LIBS+=-llog -pthread
 LDFLAGS+=-L$(LOGLIBPATH)
 
 program := src/test

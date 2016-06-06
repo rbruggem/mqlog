@@ -128,31 +128,56 @@ int log_destroy(log_t* lg) {
 
 ssize_t log_write(log_t* lg, const void* buf, size_t size) {
     ssize_t written = segment_write(lg->curr, buf, size);
-    if (written == ELNOWCP) {
+    // TODO Handle ELLOCK
+    if (written == ELEOS) {
+
         // segment has no capacity left
         lg->prev = lg->curr;
         lg->curr = lg->empty;
         int rc = next_segment(&lg->empty, lg);
         if (rc != 0) {
+            // TODO add return code
             return rc;
         }
 
-        return segment_write(lg->curr, buf, size);
+        written = segment_write(lg->curr, buf, size);
+        if (written == ELEOS) {
+            // Only attempt to write twice.
+            // This point is reached if a payload greater than
+            // the segment size is being inserted.
+            // Handling payloads greater than the segment size
+            // is currently not supported.
+            return ELNOWCP;
+        }
     }
 
     return written;
 }
 
-ssize_t log_read(const log_t* lg, uint64_t offset, struct frame* fr) {
-    const segment_t* sgm = find_segment(lg, &offset);
-    if (sgm == NULL) {
-        return ELSGNTF;
+ssize_t log_read(const log_t* lg, uint64_t* offset, struct frame* fr) {
+    const uint64_t orig_offset = *offset;
+    ssize_t read = 0;
+
+    while (1) {
+        const segment_t* sgm = find_segment(lg, offset);
+        if (sgm == NULL) {
+            return ELSGNTF;
+        }
+
+        // TODO, if size is power off two, a bitmask can be used.
+        uint64_t relative_offset = *offset % lg->size;
+
+        read = segment_read(sgm, relative_offset, fr);
+
+        // TODO: use a function
+        if (read == ELEOS && fr->hdr->flags == HEADER_FLAGS_EOS) {
+            *offset += segment_unused(sgm);
+        } else {
+            break;
+        }
     }
 
-    // TODO, if size is poweroff two, a bitmask can be used.
-    uint64_t relative_offset = offset % lg->size;
-
-    return segment_read(sgm, relative_offset, fr);
+    return read;
 }
 
 ssize_t log_sync(const log_t* lg) {

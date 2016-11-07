@@ -29,5 +29,6 @@ ssize_t     segment_read(const segment_t*, uint64_t, struct frame*);
 ssize_t     segment_sync(segment_t*);
 
 size_t      segment_unused(const segment_t*);
+size_t      segment_next_segment_delta(const segment_t*);
 
 #endif

@@ -166,7 +166,6 @@ ssize_t log_write(log_t* lg, const void* buf, size_t size) {
 }
 
 ssize_t log_read(const log_t* lg, uint64_t* offset, struct frame* fr) {
-    const uint64_t orig_offset = *offset;
     ssize_t read = 0;
     while (1) {
         // Find the segment the offset is located.
@@ -188,7 +187,7 @@ ssize_t log_read(const log_t* lg, uint64_t* offset, struct frame* fr) {
 
         // TODO: use a function
         if (read == ELEOS && fr->hdr->flags == HEADER_FLAGS_EOS) {
-            *offset += segment_unused(sgm);
+            *offset += segment_next_segment_delta(sgm);
         } else {
             break;
         }

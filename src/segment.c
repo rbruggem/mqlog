@@ -453,3 +453,9 @@ ssize_t segment_sync(segment_t* sgm) {
 size_t segment_unused(const segment_t* sgm) {
     return sgm->size - sgm->w_offset;
 }
+
+size_t segment_next_segment_delta(const segment_t* sgm) {
+    // return: one EOS frame (consists only of the header) +
+    // any unused space.
+    return sgm->size - sgm->w_offset + sizeof(struct header);
+}

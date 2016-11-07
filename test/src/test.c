@@ -1730,8 +1730,6 @@ void* producer(void* arg) {
         log_write(lg, sstr->str, sstr->len);
     }
 
-    printf("producer done\n");
-
     return NULL;
 }
 
@@ -1743,22 +1741,24 @@ void* consumer(void* arg) {
     struct frame fr;
 
     for (size_t i = 0; i < 128; ++i) {
-        printf("\n-> try %"PRId64", %d\n", offset, i);
         ssize_t read = log_read(lg, &offset, &fr);
-        printf("after %"PRId64", %d %zd\n", offset, i, read);
+
+        if (read == ELOSLOW) {
+            fprintf(stderr, "Consumer lost data: too slow\n");
+            break;
+        }
+
         if (read == ELNORD || read == ELINVHD) {
             sched_yield();
             --i;
-        } else {
-            offset += fr.hdr->size;
-            struct string* sstr = &args->data[i];
-            sstr->len = frame_payload_size(&fr);
-            memcpy(sstr->str, fr.buffer, sstr->len);
-            printf("GOT IT %"PRId64", %d, size %d\n", offset, i, fr.hdr->size);
+            continue;
         }
-    }
 
-    printf("consumer done\n");
+        offset += fr.hdr->size;
+        struct string* sstr = &args->data[i];
+        sstr->len = frame_payload_size(&fr);
+        memcpy(sstr->str, fr.buffer, sstr->len);
+    }
 
     return NULL;
 }
@@ -1797,11 +1797,10 @@ TEST(test_concurrency) {
     ASSERT(rc == 0);
 
     for (int i = 0; i < 128; ++i) {
-        printf("------------------------\n");
-        printf(">>>>> %d|%s\n", prod_args.data[i].len, prod_args.data[i].str);
-        printf("<<<<< %d|%s\n", cons_args.data[i].len, cons_args.data[i].str);
         ASSERT(prod_args.data[i].len == cons_args.data[i].len);
-        ASSERT(strncmp(prod_args.data[i].str, cons_args.data[i].str, prod_args.data[i].len) == 0);
+        ASSERT(strncmp(prod_args.data[i].str,
+               cons_args.data[i].str,
+               prod_args.data[i].len) == 0);
     }
 
     ASSERT(log_destroy(lg) == 0);

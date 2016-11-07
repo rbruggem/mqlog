@@ -168,14 +168,20 @@ ssize_t log_write(log_t* lg, const void* buf, size_t size) {
 ssize_t log_read(const log_t* lg, uint64_t* offset, struct frame* fr) {
     const uint64_t orig_offset = *offset;
     ssize_t read = 0;
-
     while (1) {
+        // Find the segment the offset is located.
+        // This can return `prev` or `curr` segment.
         const segment_t* sgm = find_segment(lg, offset);
+
+        // sgm being NULL means that the segment was not found.
+        // This happens when produces are quicker than consumers
+        // and that the given offset is lower than lowest offset
+        // the log is able to serve.
         if (sgm == NULL) {
-            return ELSGNTF;
+            return ELOSLOW;
         }
 
-        // TODO, if size is power off two, a bitmask can be used.
+        // TODO, if size is power of two, a bitmask can be used.
         uint64_t relative_offset = *offset % lg->size;
 
         read = segment_read(sgm, relative_offset, fr);

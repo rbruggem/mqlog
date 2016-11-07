@@ -17,10 +17,12 @@
 #define ELLGDIR -14 // log directory error
 #define ELLGCLS -15 // closing log error
 #define ELLGDTR -16 // destroy log error
-#define ELSGNTF -17 // segment not found
+#define ELSGMNF -17 // segment not found
 #define ELDTSYN -18 // segment sync error
 #define ELMTSYN -19 // segment sync error
 #define ELEOS   -20 // end of segment
 #define ELLOCK  -21 // lock held
+#define ELOSLOW -22 // offset is too low, not retained
+                    // (producers have been faster than consumers)
 
 #endif

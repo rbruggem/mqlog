@@ -314,23 +314,23 @@ uint64_t segment_roffset(const segment_t* sgm) {
 }
 
 ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
-    // First of all check is the segment is writable.
+    // First of all check if the segment is writable.
     if (marked_eos(sgm)) {
         return ELEOS;
     }
 
-    // `buf` will be frame with a header,
-    // therefore the actually data inserted into the segment
+    // The data inserted into the segment
     // has size: header size + buf size.
     const size_t header_size = sizeof(struct header);
     const size_t frame_size = size + header_size;
 
     const uint64_t w_offset = sgm->w_offset;
 
-    // Make sure there's always available space in to include
-    // and End Of Segment frame.
+    // Make sure there's always available space to include
+    // and End Of Segment (EOS) frame.
     // To enforce this, a payload can only be inserted if:
     // sizeof(payload) + 2 * sizeof(header) <= space left in segment.
+    // TODO: this should be a function.
     if (header_size + frame_size > sgm->size - w_offset) {
 
         // No more entries in this segment: add EOS frame.
@@ -416,6 +416,9 @@ ssize_t segment_read(const segment_t* sgm, uint64_t offset, struct frame* fr) {
             return ELEOS;
 
         case HEADER_FLAGS_EMPTY:
+            // This case is usually hit when a new frame is about to being
+            // written to the segment but only the write offset has been
+            // incremented.
             return ELINVHD;
 
         default:

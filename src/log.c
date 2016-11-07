@@ -142,6 +142,7 @@ ssize_t log_write(log_t* lg, const void* buf, size_t size) {
     if (written == ELEOS) {
 
         // segment has no capacity left
+        // TODO: this is not thread safe.
         lg->prev = lg->curr;
         lg->curr = lg->empty;
         int rc = next_segment(&lg->empty, lg);

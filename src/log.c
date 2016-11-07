@@ -32,23 +32,33 @@ static int next_segment(segment_t** sgm, log_t* lg) {
 static segment_t* find_segment(const log_t* lg, uint64_t* offset) {
     // `offset` will be modified in case of overflow to next segment.
 
-    const uint64_t curr_offset = segment_offset(lg->curr);
+    const uint64_t absolute_curr_offset = segment_offset(lg->curr);
 
+    // check prev segment first.
     if (lg->prev) {
-        const uint64_t prev_offset = segment_offset(lg->prev);
+        const uint64_t absolute_prev_offset = segment_offset(lg->prev);
         const uint64_t prev_roffset = segment_roffset(lg->prev);
 
-        if (prev_offset <=  *offset && *offset < curr_offset) {
+        if (absolute_prev_offset <=  *offset &&
+            *offset < absolute_curr_offset) {
+            // `offset` is in the previous segment.
+
             if (*offset < prev_roffset) {
                 return lg->prev;
-
             } else {
-                *offset = curr_offset;
+                // `offset` is within the prev segment,
+                // but it is lowers then the prev segment read offset.
+                // This means the prev segment has been market EOS and contains
+                // padding because, when writing, the payload did not fit into
+                // the available space.
+                // `offset` needs to be moved to the next segment.
+                *offset = absolute_curr_offset;
             }
         }
     }
 
-    if (curr_offset <= *offset) {
+    // check curr segment
+    if (absolute_curr_offset <= *offset) {
         return lg->curr;
     }
 

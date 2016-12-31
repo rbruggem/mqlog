@@ -9,8 +9,21 @@
 #include <string.h>
 #include <unistd.h>
 #include <inttypes.h>
-
+#include <ftw.h>
 #include <assert.h>
+
+static int remove_callback(const char* file,
+                           const struct stat* UNUSED(stat),
+                           int UNUSED(typeflag),
+                           struct FTW* UNUSED(ftwbuf)) {
+    return remove(file);
+}
+
+static int delete_directory(const char* dir) {
+    const int max_fds = 64;
+    return nftw(dir, remove_callback, max_fds, FTW_DEPTH | FTW_PHYS);
+}
+
 
 static int btree_compare(btree_t* tree, const int64_t* arr, int w) {
     enum { QUEUE_SIZE = 1024 };
@@ -805,7 +818,8 @@ TEST(test_log_write_read) {
     ASSERT(payload_size == str2_size);
     ASSERT(strncmp((const char*)fr.buffer, str2, payload_size) == 0);
 
-    ASSERT(log_destroy(lg) == 0);
+    ASSERT(log_close(lg) == 0);
+    delete_directory(dir);
  }
 
 TEST(test_log_write_close_open_read) {
@@ -853,7 +867,8 @@ TEST(test_log_write_close_open_read) {
     double d_read = *(double*)fr.buffer;
     ASSERT(d == d_read);
 
-    ASSERT(log_destroy(lg) == 0);
+    ASSERT(log_close(lg) == 0);
+    delete_directory(dir);
 }
 
 TEST(test_log_write_overflow_read) {
@@ -957,7 +972,8 @@ TEST(test_log_write_overflow_read) {
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    ASSERT(log_destroy(lg) == 0);
+    ASSERT(log_close(lg) == 0);
+    delete_directory(dir);
  }
 
 TEST(test_log_single_write_greater_segment_size) {
@@ -2256,7 +2272,8 @@ TEST(test_log_single_write_greater_segment_size) {
     ssize_t written = log_write(lg, payload, payload_size);
     ASSERT(written == ELNOWCP);
 
-    ASSERT(log_destroy(lg) == 0);
+    ASSERT(log_close(lg) == 0);
+    delete_directory(dir);
 }
 
 TEST(test_segment_gating) {
@@ -2314,7 +2331,8 @@ TEST(test_segment_gating) {
 
     // TODO verify written payload
 
-    ASSERT(log_destroy(lg) == 0);
+    ASSERT(log_close(lg) == 0);
+    delete_directory(dir);
 }
 
 struct string {
@@ -2429,5 +2447,6 @@ TEST(test_concurrency) {
                prod_args.data[i].len) == 0);
     }
 
-    ASSERT(log_destroy(lg) == 0);
+    ASSERT(log_close(lg) == 0);
+    delete_directory(dir);
 }

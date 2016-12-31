@@ -228,22 +228,6 @@ int log_close(log_t* lg) {
     return errors == 0 ? 0 : ELLGCLS;
 }
 
-int log_destroy(log_t* lg) {
-    char dir[MAX_DIR_SIZE];
-    snprintf(dir, MAX_DIR_SIZE, "%s", lg->dir);
-
-    int rc = log_close(lg);
-    if (rc != 0) {
-        return rc;
-    }
-
-    if (delete_directory(dir) != 0) {
-        return ELLGDTR;
-    }
-
-    return 0;
-}
-
 ssize_t log_write(log_t* lg, const void* buf, size_t size) {
     if (size == 0) {
         return 0;

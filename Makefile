@@ -8,8 +8,7 @@ libraries := src/liblog.so src/liblog.a
 
 CFLAGS+=-Wall -Wextra -Werror -Winit-self -std=c99 -pedantic -fPIC
 CFLAGS+=-fstack-protector-strong -Wformat -Werror=format-security
-CFLAGS+=-D_XOPEN_SOURCE=500  # needed for `ftruncate`
-CFLAGS+=-D_BSD_SOURCE        # needed for `madvise`
+CFLAGS+=-D_BSD_SOURCE # needed for `madvise` and `ftruncate`
 LDFLAGS+=-Wl,-O1 -Wl,--discard-all -Wl,-z,relro -shared
 
 sources := $(wildcard $(SRC)/*.c)

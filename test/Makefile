@@ -3,6 +3,7 @@ SRC=src
 LOGLIBPATH:=../src
 
 CFLAGS+=-O0 -g -I$(LOGLIBPATH) -pthread
+CFLAGS+=-D_XOPEN_SOURCE=500  # needed for `ftw`
 LIBS+=-llog -pthread
 LDFLAGS+=-L$(LOGLIBPATH)
 

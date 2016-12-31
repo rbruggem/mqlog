@@ -135,9 +135,7 @@ static int load_segments(log_t* lg) {
                     return ELLDSGM;
                 }
 
-                strncpy(str,
-                        dir->d_name,
-                        min(MAX_DIR_SIZE, strlen(dir->d_name)));
+                snprintf(str, MAX_DIR_SIZE, "%s", dir->d_name);
 
                 uint64_t offset = strtoll(str, NULL, 10);
 
@@ -181,7 +179,7 @@ int log_open(log_t** lg_ptr,
     // Initialize segment struct.
     bzero(lg, sizeof(struct log));
     lg->size = size;
-    strncpy(lg->dir, dir, MAX_DIR_SIZE);
+    snprintf(lg->dir, MAX_DIR_SIZE, "%s", dir);
 
     lg->flags = flags;
 
@@ -232,7 +230,7 @@ int log_close(log_t* lg) {
 
 int log_destroy(log_t* lg) {
     char dir[MAX_DIR_SIZE];
-    strncpy(dir, lg->dir, MAX_DIR_SIZE);
+    snprintf(dir, MAX_DIR_SIZE, "%s", lg->dir);
 
     int rc = log_close(lg);
     if (rc != 0) {

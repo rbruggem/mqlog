@@ -37,6 +37,16 @@ int file_exists(const char* filename) {
     return 0;
 }
 
+ssize_t file_size(const char* filename) {
+    struct stat st;
+
+    if (stat(filename, &st) == 0) {
+        return st.st_size;
+    }
+
+    return -1;
+}
+
 size_t page_aligned_addr(size_t addr) {
     return (addr & ~(pagesize() - 1));
 }

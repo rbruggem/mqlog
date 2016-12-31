@@ -24,7 +24,7 @@
 // |--------|--------|--------|--------|
 
 struct header {
-    uint16_t flags;
+    volatile uint16_t flags;
     uint8_t  version;
     uint8_t  pad; // not used
     uint32_t size;
@@ -56,5 +56,7 @@ struct frame {
 void header_init(struct header*);
 
 size_t frame_payload_size(const struct frame*);
+
+int prot_is_header(void*);
 
 #endif

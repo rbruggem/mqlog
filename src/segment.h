@@ -16,19 +16,17 @@ typedef struct segment segment_t;
 int         segment_open(segment_t**,
                          const char*,
                          uint64_t,
-                         size_t,
+                         uint32_t,
                          unsigned int);
 int         segment_close(segment_t*);
 
-uint64_t    segment_offset(const segment_t*);
-uint64_t    segment_roffset(const segment_t*);
+uint64_t    segment_base_offset(const segment_t*);
+uint64_t    segment_write_offset(const segment_t*);
+uint64_t    segment_read_offset(const segment_t*);
 
 /* thread safe functions */
 ssize_t     segment_write(segment_t*, const void*, size_t);
 ssize_t     segment_read(const segment_t*, uint64_t, struct frame*);
 ssize_t     segment_sync(segment_t*);
-
-size_t      segment_unused(const segment_t*);
-size_t      segment_next_segment_delta(const segment_t*);
 
 #endif

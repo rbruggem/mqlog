@@ -25,4 +25,7 @@
 #define ELOSLOW -22 // offset is too low, not retained
                     // (producers have been faster than consumers)
 
+
+#define ELWOFFS -25 // failed to find write offset
+
 #endif

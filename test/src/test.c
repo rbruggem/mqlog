@@ -2333,8 +2333,7 @@ static char* rand_string(char* str, size_t size) {
 }
 
 struct thread_args {
-    log_t*        lg;
-    struct string data[128];
+    log_t*        lg; struct string data[128];
 };
 
 void* producer(void* arg) {
@@ -2345,7 +2344,7 @@ void* producer(void* arg) {
 
     for (size_t i = 0; i < 128; ++i) {
         struct string* sstr = &args->data[i];
-        sstr->len = rand() % 128;
+        sstr->len = rand() % 128 + 1;
         rand_string(sstr->str, sstr->len);
 
         log_write(lg, sstr->str, sstr->len);
@@ -2362,7 +2361,7 @@ void* consumer(void* arg) {
     struct frame fr;
 
     for (size_t i = 0; i < 128; ++i) {
-        ssize_t read = log_read(lg, &offset, &fr);
+        ssize_t read = log_read(lg, offset, &fr);
 
         if (read == ELOSLOW) {
             fprintf(stderr, "Consumer lost data: too slow\n");
@@ -2375,10 +2374,12 @@ void* consumer(void* arg) {
             continue;
         }
 
-        offset += fr.hdr->size;
+        assert(read > 0);
+
         struct string* sstr = &args->data[i];
         sstr->len = frame_payload_size(&fr);
         memcpy(sstr->str, fr.buffer, sstr->len);
+        ++offset;
     }
 
     return NULL;
@@ -2414,6 +2415,7 @@ TEST(test_concurrency) {
 
     rc = pthread_join(prod0, NULL);
     ASSERT(rc == 0);
+
     rc = pthread_join(cons0, NULL);
     ASSERT(rc == 0);
 

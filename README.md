@@ -1,10 +1,13 @@
-##### FIFO brokerless log-like data structure library inspired by: 
+#### This library is NOT production ready
+
+##### FIFO brokerless log-like data structure library inspired by:
 
 * Apache Kafka
 * Aeron
 * LMAX Disruptor
 * Write ahead logs
 
+##### Instructions
 
 To compile:
 

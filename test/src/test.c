@@ -788,18 +788,18 @@ TEST(test_log_write_read) {
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, &offset, &fr);
+    ssize_t read = log_read(lg, offset, &fr);
     ASSERT((size_t)read == str_size);
 
-    offset += fr.hdr->size;
+    ++offset;
     size_t payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    read = log_read(lg, &offset, &fr);
+    read = log_read(lg, offset, &fr);
     ASSERT((size_t)read == str2_size);
 
-    offset += fr.hdr->size;
+    ++offset;
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == str2_size);
     ASSERT(strncmp((const char*)fr.buffer, str2, payload_size) == 0);
@@ -836,23 +836,21 @@ TEST(test_log_write_close_open_read) {
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, &offset, &fr);
+    ssize_t read = log_read(lg, offset, &fr);
     ASSERT((size_t)read == n_size);
 
-    offset += fr.hdr->size;
+    ++offset;
     size_t payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == n_size);
     int n_read = *(int*)fr.buffer;
     ASSERT(n == n_read);
 
-    read = log_read(lg, &offset, &fr);
+    read = log_read(lg, offset, &fr);
     ASSERT((size_t)read == d_size);
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == d_size);
     double d_read = *(double*)fr.buffer;
     ASSERT(d == d_read);
-
-    offset += fr.hdr->size;
 
     ASSERT(log_destroy(lg) == 0);
 }
@@ -935,26 +933,25 @@ TEST(test_log_write_overflow_read) {
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, &offset, &fr);
+    ssize_t read = log_read(lg, offset, &fr);
     ASSERT((size_t)read == str_size);
 
-    offset += fr.hdr->size;
+    ++offset;
     size_t payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    read = log_read(lg, &offset, &fr);
+    read = log_read(lg, offset, &fr);
     ASSERT((size_t)read == str_size);
 
-    offset += fr.hdr->size;
+    ++offset;
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    read = log_read(lg, &offset, &fr);
+    read = log_read(lg, offset, &fr);
     ASSERT((size_t)read == str_size);
 
-    offset += fr.hdr->size;
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
@@ -2288,28 +2285,28 @@ TEST(test_segment_gating) {
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, &offset, &fr);
+    ssize_t read = log_read(lg, offset, &fr);
     ASSERT(read == ELNORD);
 
     ssize_t synced = log_sync(lg);
-    ASSERT((size_t)synced == written + sizeof(*(fr.hdr)));
+    ASSERT((size_t)synced == 1);
 
     written = log_write(lg, data, data_size);
     ASSERT(data_size == (size_t)written);
 
-    read = log_read(lg, &offset, &fr);
+    read = log_read(lg, offset, &fr);
     ASSERT((size_t)read == data_size);
-    offset += fr.hdr->size;
+    ++offset;
     size_t payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == data_size);
 
-    read = log_read(lg, &offset, &fr);
+    read = log_read(lg, offset, &fr);
     ASSERT(read == ELNORD);
 
     synced = log_sync(lg);
     ASSERT(synced > 0);
 
-    read = log_read(lg, &offset, &fr);
+    read = log_read(lg, offset, &fr);
     ASSERT((size_t)read == data_size);
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == data_size);

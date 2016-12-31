@@ -1,71 +1,170 @@
 #include "log.h"
 #include "segment.h"
 #include "util.h"
+#include "btree.h"
 #include <string.h>
+#include <dirent.h>
+#include <assert.h>
+#include <errno.h>
+#include <pthread.h>
 
+enum { BRANCH_FACTOR = 7 };
 enum { MAX_DIR_SIZE = 1024 };
 
 struct log {
-    size_t       size;
-    unsigned int flags;
-    uint64_t     offset;
-    char         dir[MAX_DIR_SIZE];
-    segment_t*   prev;
-    segment_t*   curr;
-    segment_t*   empty;
+    size_t          size;
+    unsigned int    flags;
+    char            dir[MAX_DIR_SIZE];
+    btree_t*        index;
+    pthread_mutex_t lock;
 };
 
-static int next_segment(segment_t** sgm, log_t* lg) {
+static int create_segment(segment_t** sgm, uint64_t base_offset, log_t* lg) {
+    // TODO: this is not thread safe.
+
     unsigned int flags = SGM_RDDRT;
     if ((lg->flags & LOG_RDCMT) == LOG_RDCMT) {
         flags = SGM_RDCMT;
     }
 
-    int rc = segment_open(sgm, lg->dir, lg->offset, lg->size, flags);
+    int rc = segment_open(sgm, lg->dir, base_offset, lg->size, flags);
     if (rc != 0) {
         return rc;
     }
-    lg->offset += lg->size;
+
     return 0;
 }
 
-static segment_t* find_segment(const log_t* lg, uint64_t* offset) {
-    // `offset` will be modified in case of overflow to next segment.
-
-    const uint64_t absolute_curr_offset = segment_offset(lg->curr);
-
-    // check prev segment first.
-    if (lg->prev) {
-        const uint64_t absolute_prev_offset = segment_offset(lg->prev);
-        const uint64_t prev_roffset = segment_roffset(lg->prev);
-
-        if (absolute_prev_offset <=  *offset &&
-            *offset < absolute_curr_offset) {
-            // `offset` is in the previous segment.
-
-            if (*offset < prev_roffset) {
-                return lg->prev;
-            } else {
-                // `offset` is within the prev segment,
-                // but it is lowers then the prev segment read offset.
-                // This means the prev segment has been market EOS and contains
-                // padding because, when writing, the payload did not fit into
-                // the available space.
-                // `offset` needs to be moved to the next segment.
-                *offset = absolute_curr_offset;
-            }
+static ssize_t log_write_try(log_t* lg, const void* buf, size_t size) {
+    // TODO: this is not thread safe.
+    const struct btree_node_data* node_data = btree_max(lg->index);
+    segment_t* sgm = NULL;
+    unsigned int new_segment = 0;
+    if (node_data) {
+        sgm = node_data->value;
+    } else {
+        // This is the first segment
+        new_segment = 1;
+        int rc = create_segment(&sgm, 0, lg);
+        if (rc != 0) {
+            return rc;
         }
     }
 
-    // check curr segment
-    if (absolute_curr_offset <= *offset) {
-        return lg->curr;
+    // TODO Handle ELLOCK
+    ssize_t written = segment_write(sgm, buf, size);
+    if (written == ELEOS && new_segment) {
+        // this means the the new frame is greater than the
+        // entire segment
+        segment_close(sgm);
+        return ELNOWCP;
     }
 
-    return NULL;
+    if (written == ELEOS) {
+        // segment has no capacity left
+        assert(new_segment == 0);
+        new_segment = 1;
+        const uint64_t new_base_offset = segment_write_offset(sgm);
+        int rc = create_segment(&sgm, new_base_offset, lg);
+        if (rc != 0) {
+            // TODO add return code
+            return rc;
+        }
+
+        // TODO Handle ELLOCK
+        written = segment_write(sgm, buf, size);
+        if (written == ELEOS) {
+            // Only attempt to write twice.
+            // This point is reached if a payload greater than
+            // the segment size is being inserted.
+            // Handling payloads greater than the segment size
+            // is currently not supported.
+            segment_close(sgm);
+            return ELNOWCP;
+        }
+    } else {
+
+    }
+
+    if (new_segment) {
+        const uint64_t base_offset = segment_base_offset(sgm);
+        if (btree_insert(lg->index, base_offset, sgm) != 0) {
+            segment_close(sgm);
+            return ELIDXOP;
+        }
+    }
+
+    return written;
 }
 
-int log_open(log_t** lg_ptr, const char* dir, size_t size, unsigned int flags) {
+static ssize_t log_read_try(const log_t* lg,
+                            uint64_t offset,
+                            struct frame* fr) {
+    // Find the segment the offset is located.
+    // This can return `prev` or `curr` segment.
+    btree_iterator_t* iter = btree_iterator_find_le(lg->index, offset);
+    if (!btree_iterator_valid(iter)) {
+        free(iter);
+        return ELNORD;
+    }
+
+    const struct btree_node_data* node_data = btree_iterator_data(iter);
+    const segment_t* sgm = (const segment_t*)node_data->value;
+
+    free(iter);
+
+    uint64_t base_offset = segment_base_offset(sgm);
+    uint64_t relative_offset = offset - base_offset;
+
+    return segment_read(sgm, relative_offset, fr);
+}
+
+static int load_segments(log_t* lg) {
+    DIR* d = opendir(lg->dir);
+    if (d) {
+        struct dirent *dir;
+        while ((dir = readdir(d)) != NULL) {
+            // TODO: don't hardcode `.log`
+            if (has_suffix(dir->d_name, ".log")) {
+                char str[MAX_DIR_SIZE];
+                strncpy(str, lg->dir, MAX_DIR_SIZE);
+                strncat(str, "/", MAX_DIR_SIZE);
+                strncat(str, dir->d_name, MAX_DIR_SIZE);
+
+                ssize_t size = file_size(str);
+                if (size == -1) {
+                    return ELLDSGM;
+                }
+
+                strncpy(str,
+                        dir->d_name,
+                        min(MAX_DIR_SIZE, strlen(dir->d_name)));
+
+                uint64_t offset = strtoll(str, NULL, 10);
+
+                segment_t* sgm = 0;
+                int rc = segment_open(&sgm, lg->dir, offset, size, lg->flags);
+                if (rc != 0) {
+                    return ELLDSGM;
+                }
+
+                if (btree_insert(lg->index, offset, sgm) != 0) {
+                    segment_close(sgm);
+                    return ELLDSGM;
+                }
+            }
+        }
+    }
+    closedir(d);
+
+    return 0;
+}
+
+int log_open(log_t** lg_ptr,
+             const char* dir,
+             size_t size,
+             unsigned int flags) {
+
     // Size has to be a multiple of page size.
     if (size % pagesize() != 0) {
         return ELNOPGM;
@@ -83,23 +182,22 @@ int log_open(log_t** lg_ptr, const char* dir, size_t size, unsigned int flags) {
     // Initialize segment struct.
     bzero(lg, sizeof(struct log));
     lg->size = size;
-    lg->offset = 0;
     strncpy(lg->dir, dir, MAX_DIR_SIZE);
 
     lg->flags = flags;
 
-    // prev will stay NULL for now.
-    int rc = next_segment(&lg->curr, lg);
-    if (rc != 0) {
+    lg->index = btree_init(BRANCH_FACTOR);
+    if (!lg->index) {
         log_close(lg);
-        return rc;
+        return ELIDXCR;
     }
 
-    rc = next_segment(&lg->empty, lg);
-    if (rc != 0) {
+    if (pthread_mutex_init(&lg->lock, NULL)) {
         log_close(lg);
-        return rc;
+        return ELLCKOP;
     }
+
+    load_segments(lg);
 
     *lg_ptr = lg;
 
@@ -108,94 +206,76 @@ int log_open(log_t** lg_ptr, const char* dir, size_t size, unsigned int flags) {
 
 int log_close(log_t* lg) {
     int errors = 0;
-    if (lg->prev) {
-        if (segment_close(lg->prev) != 0) {
+
+    if (lg->index) {
+        btree_iterator_t* iter = btree_iterator_head(lg->index);
+        for (; btree_iterator_valid(iter); iter = btree_iterator_next(iter)) {
+
+            const struct btree_node_data* node_data = btree_iterator_data(iter);
+            segment_t* sgm = (segment_t*)node_data->value;
+            if (segment_close(sgm) != 0) {
+                ++errors;
+            }
+        }
+
+        free(iter);
+
+        if (btree_free(lg->index) != 0) {
             ++errors;
         }
     }
-    if (lg->curr) {
-        if (segment_close(lg->curr) != 0) {
-            ++errors;
-        }
-    }
-    if (lg->empty) {
-        if (segment_close(lg->empty) != 0) {
-            ++errors;
-        }
-    }
+
+    pthread_mutex_destroy(&lg->lock);
 
     free(lg);
     return errors == 0 ? 0 : ELLGCLS;
 }
 
 int log_destroy(log_t* lg) {
-    if (delete_directory(lg->dir) != 0) {
+    char dir[MAX_DIR_SIZE];
+    strncpy(dir, lg->dir, MAX_DIR_SIZE);
+
+    int rc = log_close(lg);
+    if (rc != 0) {
+        return rc;
+    }
+
+    if (delete_directory(dir) != 0) {
         return ELLGDTR;
     }
 
-    return log_close(lg);
+    return 0;
 }
 
 ssize_t log_write(log_t* lg, const void* buf, size_t size) {
-    ssize_t written = segment_write(lg->curr, buf, size);
-    // TODO Handle ELLOCK
-    if (written == ELEOS) {
+    if (size == 0) {
+        return 0;
+    }
 
-        // segment has no capacity left
-        // TODO: this is not thread safe.
-        lg->prev = lg->curr;
-        lg->curr = lg->empty;
-        int rc = next_segment(&lg->empty, lg);
-        if (rc != 0) {
-            // TODO add return code
-            return rc;
-        }
+    if (pthread_mutex_trylock(&lg->lock) != 0) {
+        return errno == EBUSY ? ELLOCK : ELLCKOP;
+    }
 
-        written = segment_write(lg->curr, buf, size);
-        if (written == ELEOS) {
-            // Only attempt to write twice.
-            // This point is reached if a payload greater than
-            // the segment size is being inserted.
-            // Handling payloads greater than the segment size
-            // is currently not supported.
-            return ELNOWCP;
-        }
+    ssize_t written = log_write_try(lg, buf, size);
+
+    if (pthread_mutex_unlock(&lg->lock) != 0) {
+        return ELLCKOP;
     }
 
     return written;
 }
 
-ssize_t log_read(const log_t* lg, uint64_t* offset, struct frame* fr) {
-    ssize_t read = 0;
-    while (1) {
-        // Find the segment the offset is located.
-        // This can return `prev` or `curr` segment.
-        const segment_t* sgm = find_segment(lg, offset);
-
-        // sgm being NULL means that the segment was not found.
-        // This happens when produces are quicker than consumers
-        // and that the given offset is lower than lowest offset
-        // the log is able to serve.
-        if (sgm == NULL) {
-            return ELOSLOW;
-        }
-
-        // TODO, if size is power of two, a bitmask can be used.
-        uint64_t relative_offset = *offset % lg->size;
-
-        read = segment_read(sgm, relative_offset, fr);
-
-        // TODO: use a function
-        if (read == ELEOS && fr->hdr->flags == HEADER_FLAGS_EOS) {
-            *offset += segment_next_segment_delta(sgm);
-        } else {
-            break;
-        }
-    }
-
+ssize_t log_read(const log_t* lg, uint64_t offset, struct frame* fr) {
+    ssize_t read = log_read_try(lg, offset, fr);
     return read;
 }
 
 ssize_t log_sync(const log_t* lg) {
-    return segment_sync(lg->curr);
+    // TODO this only syncs the last segment
+    const struct btree_node_data* node_data = btree_max(lg->index);
+    if (node_data) {
+        return segment_sync((segment_t*)node_data->value);
+    }
+
+    return 0;
 }

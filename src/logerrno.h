@@ -24,8 +24,10 @@
 #define ELLOCK  -21 // lock held
 #define ELOSLOW -22 // offset is too low, not retained
                     // (producers have been faster than consumers)
-
-
+#define ELIDXCR -23 // failed to create index
+#define ELIDXOP -24 // index operation failed
 #define ELWOFFS -25 // failed to find write offset
+#define ELLDSGM -26 // failed to load segments
+#define ELLCKOP -28 // failed on lock operation
 
 #endif

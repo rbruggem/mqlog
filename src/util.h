@@ -18,9 +18,9 @@ unsigned int crc32(unsigned char*, size_t);
 
 #ifdef LOG_DEBUG
 #include <stdio.h>
-#define PRINT(...) printf(__VA_ARGS__)
+#define LOG_PRINT(...) printf(__VA_ARGS__)
 #else
-#define PRINT(x) do {} while (0);
+#define LOG_PRINT(...) do {} while (0);
 #endif
 
 #ifdef UNUSED

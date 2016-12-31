@@ -1,6 +1,6 @@
 SRC=src
 
-CFLAGS+=-O3 -DLOG_DEBUG -g
+CFLAGS+=-O3 -g
 LIBS+=
 LDFLAGS+=
 

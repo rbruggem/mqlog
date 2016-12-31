@@ -15,6 +15,6 @@ int testfw_run();
 #define FAILED(name) fprintf(stderr, "[ %sFAILED%s ] %s (%s:%d)\n", RED, NEUTRAL, name, __FILE__, __LINE__)
 #define PASSED(name) printf("[ %sPASSED%s ] %s\n", GREEN, NEUTRAL, name);
 
-#define ASSERT(stmt) if (!(stmt)) {++(*__errors); FAILED(__FUNCTION__);}
+#define ASSERT(stmt) if (!(stmt)) {++(*__errors); FAILED(__func__);}
 
 #endif

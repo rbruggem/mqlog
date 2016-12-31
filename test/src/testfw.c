@@ -15,7 +15,7 @@ static struct node* tail = NULL;
 
 void testfw_add(void (*test_fn)(int*), const char* test_name) {
     struct node* elem = (struct node*)malloc(sizeof(struct node));
-    bzero(elem, sizeof(struct node));
+    memset(elem, 0, sizeof(struct node));
     elem->test_fn = test_fn;
     elem->test_name = test_name;
 

@@ -177,7 +177,7 @@ int log_open(log_t** lg_ptr,
     }
 
     // Initialize segment struct.
-    bzero(lg, sizeof(struct log));
+    memset(lg, 0, sizeof(struct log));
     lg->size = size;
     snprintf(lg->dir, MAX_DIR_SIZE, "%s", dir);
 

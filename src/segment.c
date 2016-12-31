@@ -345,7 +345,7 @@ int segment_open(segment_t** sgm_ptr,
     }
 
     // Initialize segment struct
-    bzero(sgm, sizeof(struct segment));
+    memset(sgm, 0, sizeof(struct segment));
     sgm->base_offset = base_offset;
 
     // The index will contain one entry for each entry in the segment

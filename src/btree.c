@@ -53,7 +53,7 @@ static struct btree_node* btree_node_create(const struct btree* tree,
         return 0;
     }
 
-    bzero(node, size);
+    memset(node, 0, size);
     node->leaf = 0;
     node->parent = parent;
     return node;
@@ -69,7 +69,7 @@ static struct btree_node* btree_node_leaf_create(const struct btree* tree,
         return 0;
     }
 
-    bzero(node, size);
+    memset(node, 0, size);
     node->leaf = 1;
     node->parent = parent;
     return node;

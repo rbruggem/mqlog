@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <pthread.h>
+#include <stdio.h>
 
 enum { BRANCH_FACTOR = 7 };
 enum { MAX_DIR_SIZE = 1024 };
@@ -127,9 +128,7 @@ static int load_segments(log_t* lg) {
             // TODO: don't hardcode `.log`
             if (has_suffix(dir->d_name, ".log")) {
                 char str[MAX_DIR_SIZE];
-                strncpy(str, lg->dir, MAX_DIR_SIZE);
-                strncat(str, "/", MAX_DIR_SIZE);
-                strncat(str, dir->d_name, MAX_DIR_SIZE);
+                snprintf(str, MAX_DIR_SIZE, "%s/%s", lg->dir, dir->d_name);
 
                 ssize_t size = file_size(str);
                 if (size == -1) {

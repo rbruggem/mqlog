@@ -741,6 +741,7 @@ TEST(test_segment_write_no_capacity) {
 
     const size_t block0_size = 3000;
     unsigned char block0[block0_size];
+    memset(block0, 0, block0_size);
     ssize_t written = segment_write(sgm, block0, block0_size);
     ASSERT((size_t)written == block0_size);
 
@@ -2310,6 +2311,8 @@ TEST(test_segment_gating) {
     ASSERT((size_t)read == data_size);
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == data_size);
+
+    // TODO verify written payload
 
     ASSERT(log_destroy(lg) == 0);
 }

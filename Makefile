@@ -22,7 +22,7 @@ CFLAGS += $(addprefix -I,$(include_dirs))
 vpath %.h $(include_dirs)
 
 MV := mv -f
-RM := rm -f
+RM := rm -rf
 SED := sed
 
 .PHONY: all
@@ -39,7 +39,7 @@ build: $(libraries)
 
 .PHONY: clean
 clean:
-	$(RM) $(objects) $(dependencies) $(libraries) $(SRC)/*.gcda $(SRC)/*.gcno
+	$(RM) $(objects) $(dependencies) $(libraries) $(SRC)/*.gcda $(SRC)/*.gcno lcov-html cov.info
 	@$(MAKE) -C test clean
 
 .PHONY: test

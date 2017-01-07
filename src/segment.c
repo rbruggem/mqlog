@@ -1,6 +1,7 @@
 #include "segment.h"
 #include "prot.h"
 #include "util.h"
+#include "crc32.h"
 #include "mqlogerrno.h"
 #include "cassert.h"
 #include <string.h>
@@ -18,6 +19,8 @@
 #define INDEX_SUFFIX "idx"
 
 #define LATEST_SEGMENT_VERSION 0
+
+#define CRC32_INIT 0
 
 struct index_entry {
     volatile size_t physical_offset;
@@ -517,7 +520,7 @@ ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
     // TODO: is this really needed? Does a filesystem do this?.
     // TODO: should this be calculated before reserving an area in
     // the segment?
-    hdr->crc32 = crc32((unsigned char*)buf, size);
+    hdr->crc32 = crc32(CRC32_INIT, buf, size);
     hdr->size = frame_size;
 
     // Marks content as ready to be consumed.

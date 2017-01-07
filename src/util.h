@@ -15,7 +15,6 @@ ssize_t      file_size(const char*);
 size_t       page_aligned_addr(size_t);
 int          ensure_directory(const char*);
 int          append_file_to_dir(char*, size_t, const char*, const char*);
-unsigned int crc32(unsigned char*, size_t);
 int          has_suffix(const char*, const char*);
 
 #ifdef LOG_DEBUG

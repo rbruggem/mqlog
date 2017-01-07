@@ -1,5 +1,5 @@
-#ifndef LOGERRNO_H_
-#define LOGERRNO_H_
+#ifndef MQLOG_MQLOGERRNO_H_
+#define MQLOG_MQLOGERRNO_H_
 
 #define ELALLC   -1 // allocation error
 #define ELNOPGM  -2 // size is not a multiple of page size

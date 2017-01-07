@@ -1,5 +1,5 @@
-#ifndef UTIL_H_
-#define UTIL_H_
+#ifndef MQLOG_UTIL_H_
+#define MQLOG_UTIL_H_
 
 #include <inttypes.h>
 #include <stdlib.h>

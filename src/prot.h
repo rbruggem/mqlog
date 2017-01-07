@@ -1,5 +1,5 @@
-#ifndef PROT_H_
-#define PROT_H_
+#ifndef MQLOG_PROT_H_
+#define MQLOG_PROT_H_
 
 #include <stdint.h>
 #include <stddef.h>

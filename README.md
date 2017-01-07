@@ -1,13 +1,6 @@
+## mqlog is a library that provides an embeddable durable queue implementend as an immutable log.
+
 #### This library is NOT production ready
-
-##### FIFO brokerless log-like data structure library inspired by:
-
-* Apache Kafka
-* Aeron
-* LMAX Disruptor
-* Write ahead logs
-
-##### Instructions
 
 To compile:
 

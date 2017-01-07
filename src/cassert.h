@@ -1,5 +1,5 @@
-#ifndef CASSERT_H_
-#define CASSERT_H_
+#ifndef MQLOG_CASSERT_H_
+#define MQLOG_CASSERT_H_
 /**
  * Thanks to http://stackoverflow.com/users/68204/rberteig
  * http://stackoverflow.com/questions/807244/c-compiler-asserts-how-to-implement

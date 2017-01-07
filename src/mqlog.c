@@ -1,4 +1,4 @@
-#include "log.h"
+#include "mqlog.h"
 #include "segment.h"
 #include "util.h"
 #include "btree.h"
@@ -12,7 +12,7 @@
 enum { BRANCH_FACTOR = 7 };
 enum { MAX_DIR_SIZE = 1024 };
 
-struct log {
+struct mqlog {
     size_t          size;
     unsigned int    flags;
     char            dir[MAX_DIR_SIZE];
@@ -20,11 +20,11 @@ struct log {
     pthread_mutex_t lock;
 };
 
-static int create_segment(segment_t** sgm, uint64_t base_offset, log_t* lg) {
+static int create_segment(segment_t** sgm, uint64_t base_offset, mqlog_t* lg) {
     // TODO: this is not thread safe.
 
     unsigned int flags = SGM_RDDRT;
-    if ((lg->flags & LOG_RDCMT) == LOG_RDCMT) {
+    if ((lg->flags & MQLOG_RDCMT) == MQLOG_RDCMT) {
         flags = SGM_RDCMT;
     }
 
@@ -36,7 +36,7 @@ static int create_segment(segment_t** sgm, uint64_t base_offset, log_t* lg) {
     return 0;
 }
 
-static ssize_t log_write_try(log_t* lg, const void* buf, size_t size) {
+static ssize_t mqlog_write_try(mqlog_t* lg, const void* buf, size_t size) {
     // TODO: this is not thread safe.
     const struct btree_node_data* node_data = btree_max(lg->index);
     segment_t* sgm = NULL;
@@ -98,7 +98,7 @@ static ssize_t log_write_try(log_t* lg, const void* buf, size_t size) {
     return written;
 }
 
-static ssize_t log_read_try(const log_t* lg,
+static ssize_t mqlog_read_try(const mqlog_t* lg,
                             uint64_t offset,
                             struct frame* fr) {
     // Find the segment the offset is located.
@@ -120,7 +120,7 @@ static ssize_t log_read_try(const log_t* lg,
     return segment_read(sgm, relative_offset, fr);
 }
 
-static int load_segments(log_t* lg) {
+static int load_segments(mqlog_t* lg) {
     DIR* d = opendir(lg->dir);
     if (d) {
         struct dirent *dir;
@@ -157,7 +157,7 @@ static int load_segments(log_t* lg) {
     return 0;
 }
 
-int log_open(log_t** lg_ptr,
+int mqlog_open(mqlog_t** lg_ptr,
              const char* dir,
              size_t size,
              unsigned int flags) {
@@ -171,13 +171,13 @@ int log_open(log_t** lg_ptr,
         return ELLGDIR;
     }
 
-    struct log* lg = (struct log*)malloc(sizeof(struct log));
+    struct mqlog* lg = (struct mqlog*)malloc(sizeof(struct mqlog));
     if (!lg) {
         return ELALLC;
     }
 
     // Initialize segment struct.
-    memset(lg, 0, sizeof(struct log));
+    memset(lg, 0, sizeof(struct mqlog));
     lg->size = size;
     snprintf(lg->dir, MAX_DIR_SIZE, "%s", dir);
 
@@ -185,12 +185,12 @@ int log_open(log_t** lg_ptr,
 
     lg->index = btree_init(BRANCH_FACTOR);
     if (!lg->index) {
-        log_close(lg);
+        mqlog_close(lg);
         return ELIDXCR;
     }
 
     if (pthread_mutex_init(&lg->lock, NULL)) {
-        log_close(lg);
+        mqlog_close(lg);
         return ELLCKOP;
     }
 
@@ -201,7 +201,7 @@ int log_open(log_t** lg_ptr,
     return 0;
 }
 
-int log_close(log_t* lg) {
+int mqlog_close(mqlog_t* lg) {
     int errors = 0;
 
     if (lg->index) {
@@ -228,7 +228,7 @@ int log_close(log_t* lg) {
     return errors == 0 ? 0 : ELLGCLS;
 }
 
-ssize_t log_write(log_t* lg, const void* buf, size_t size) {
+ssize_t mqlog_write(mqlog_t* lg, const void* buf, size_t size) {
     if (size == 0) {
         return 0;
     }
@@ -237,7 +237,7 @@ ssize_t log_write(log_t* lg, const void* buf, size_t size) {
         return errno == EBUSY ? ELLOCK : ELLCKOP;
     }
 
-    ssize_t written = log_write_try(lg, buf, size);
+    ssize_t written = mqlog_write_try(lg, buf, size);
 
     if (pthread_mutex_unlock(&lg->lock) != 0) {
         return ELLCKOP;
@@ -246,12 +246,12 @@ ssize_t log_write(log_t* lg, const void* buf, size_t size) {
     return written;
 }
 
-ssize_t log_read(const log_t* lg, uint64_t offset, struct frame* fr) {
-    ssize_t read = log_read_try(lg, offset, fr);
+ssize_t mqlog_read(const mqlog_t* lg, uint64_t offset, struct frame* fr) {
+    ssize_t read = mqlog_read_try(lg, offset, fr);
     return read;
 }
 
-ssize_t log_sync(const log_t* lg) {
+ssize_t mqlog_sync(const mqlog_t* lg) {
     // TODO this only syncs the last segment
     const struct btree_node_data* node_data = btree_max(lg->index);
     if (node_data) {

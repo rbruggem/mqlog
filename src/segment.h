@@ -1,5 +1,5 @@
-#ifndef SEGMENT_H_
-#define SEGMENT_H_
+#ifndef MQLOG_SEGMENT_H_
+#define MQLOG_SEGMENT_H_
 
 #include <prot.h>
 #include <sys/types.h>

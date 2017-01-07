@@ -2,7 +2,7 @@
 #include <btree.h>
 #include <segment.h>
 #include <pthread.h>
-#include <log.h>
+#include <mqlog.h>
 #include <util.h>
 #include <time.h>
 #include <stdio.h>
@@ -784,25 +784,25 @@ TEST(test_log_write_read) {
     const size_t size = 1048576; // 1 MB
     const const char* dir = "/tmp/test_log_write_read";
 
-    log_t* lg = NULL;
-    int rc = log_open(&lg, dir, size, 0);
+    mqlog_t* lg = NULL;
+    int rc = mqlog_open(&lg, dir, size, 0);
     ASSERT(rc == 0);
     ASSERT(lg);
 
     const char* str = "d dfmfo}ädaq 2";
     const size_t str_size = strlen(str);
-    ssize_t written = log_write(lg, str, str_size);
+    ssize_t written = mqlog_write(lg, str, str_size);
     ASSERT(str_size == (size_t)written);
 
     const char* str2 = "asdasd d33?";
     const size_t str2_size = strlen(str2);
-    written = log_write(lg, str2, str2_size);
+    written = mqlog_write(lg, str2, str2_size);
     ASSERT(str2_size == (size_t)written);
 
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, offset, &fr);
+    ssize_t read = mqlog_read(lg, offset, &fr);
     ASSERT((size_t)read == str_size);
 
     ++offset;
@@ -810,7 +810,7 @@ TEST(test_log_write_read) {
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    read = log_read(lg, offset, &fr);
+    read = mqlog_read(lg, offset, &fr);
     ASSERT((size_t)read == str2_size);
 
     ++offset;
@@ -818,7 +818,7 @@ TEST(test_log_write_read) {
     ASSERT(payload_size == str2_size);
     ASSERT(strncmp((const char*)fr.buffer, str2, payload_size) == 0);
 
-    ASSERT(log_close(lg) == 0);
+    ASSERT(mqlog_close(lg) == 0);
     delete_directory(dir);
  }
 
@@ -826,32 +826,32 @@ TEST(test_log_write_close_open_read) {
     const size_t size = 10485760; // 10 MB
     const const char* dir = "/tmp/test_log_write_close_open_read";
 
-    log_t* lg = NULL;
-    int rc = log_open(&lg, dir, size, 0);
+    mqlog_t* lg = NULL;
+    int rc = mqlog_open(&lg, dir, size, 0);
     ASSERT(rc == 0);
     ASSERT(lg);
 
     const int n = 14434;
     const size_t n_size = sizeof(n);
-    ssize_t written = log_write(lg, &n, n_size);
+    ssize_t written = mqlog_write(lg, &n, n_size);
     ASSERT(n_size == (size_t)written);
 
     const double d = 45435.2445;
     const size_t d_size = sizeof(d);
-    written = log_write(lg, &d, d_size);
+    written = mqlog_write(lg, &d, d_size);
     ASSERT(d_size == (size_t)written);
 
-    ASSERT(log_close(lg) == 0);
+    ASSERT(mqlog_close(lg) == 0);
 
     lg = NULL;
-    rc = log_open(&lg, dir, size, 0);
+    rc = mqlog_open(&lg, dir, size, 0);
     ASSERT(rc == 0);
     ASSERT(lg);
 
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, offset, &fr);
+    ssize_t read = mqlog_read(lg, offset, &fr);
     ASSERT((size_t)read == n_size);
 
     ++offset;
@@ -860,14 +860,14 @@ TEST(test_log_write_close_open_read) {
     int n_read = *(int*)fr.buffer;
     ASSERT(n == n_read);
 
-    read = log_read(lg, offset, &fr);
+    read = mqlog_read(lg, offset, &fr);
     ASSERT((size_t)read == d_size);
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == d_size);
     double d_read = *(double*)fr.buffer;
     ASSERT(d == d_read);
 
-    ASSERT(log_close(lg) == 0);
+    ASSERT(mqlog_close(lg) == 0);
     delete_directory(dir);
 }
 
@@ -875,8 +875,8 @@ TEST(test_log_write_overflow_read) {
     const size_t size = 8192;
     const const char* dir = "/tmp/test_log_write_overflow_read";
 
-    log_t* lg = NULL;
-    int rc = log_open(&lg, dir, size, 0);
+    mqlog_t* lg = NULL;
+    int rc = mqlog_open(&lg, dir, size, 0);
     ASSERT(rc == 0);
     ASSERT(lg);
 
@@ -935,21 +935,21 @@ TEST(test_log_write_overflow_read) {
     ASSERT(str_size == 3380);
 
     // write first time, no overflow
-    ssize_t written = log_write(lg, str, str_size);
+    ssize_t written = mqlog_write(lg, str, str_size);
     ASSERT(str_size == (size_t)written);
 
     // write again, no overflow
-    written = log_write(lg, str, str_size);
+    written = mqlog_write(lg, str, str_size);
     ASSERT(str_size == (size_t)written);
 
     // write one more time, should overflow, but still write
-    written = log_write(lg, str, str_size);
+    written = mqlog_write(lg, str, str_size);
     ASSERT(str_size == (size_t)written);
 
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, offset, &fr);
+    ssize_t read = mqlog_read(lg, offset, &fr);
     ASSERT((size_t)read == str_size);
 
     ++offset;
@@ -957,7 +957,7 @@ TEST(test_log_write_overflow_read) {
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    read = log_read(lg, offset, &fr);
+    read = mqlog_read(lg, offset, &fr);
     ASSERT((size_t)read == str_size);
 
     ++offset;
@@ -965,14 +965,14 @@ TEST(test_log_write_overflow_read) {
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    read = log_read(lg, offset, &fr);
+    read = mqlog_read(lg, offset, &fr);
     ASSERT((size_t)read == str_size);
 
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == str_size);
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
-    ASSERT(log_close(lg) == 0);
+    ASSERT(mqlog_close(lg) == 0);
     delete_directory(dir);
  }
 
@@ -980,8 +980,8 @@ TEST(test_log_single_write_greater_segment_size) {
     const size_t size = 4096;
     const const char* dir = "/tmp/test_log_single_write_greater_segment_size";
 
-    log_t* lg = NULL;
-    int rc = log_open(&lg, dir, size, 0);
+    mqlog_t* lg = NULL;
+    int rc = mqlog_open(&lg, dir, size, 0);
     ASSERT(rc == 0);
     ASSERT(lg);
 
@@ -2269,10 +2269,10 @@ TEST(test_log_single_write_greater_segment_size) {
         0x90, 0x9a, 0x6e, 0xca, 0xa4, 0x65, 0x78, 0xb0
     };
 
-    ssize_t written = log_write(lg, payload, payload_size);
+    ssize_t written = mqlog_write(lg, payload, payload_size);
     ASSERT(written == ELNOWCP);
 
-    ASSERT(log_close(lg) == 0);
+    ASSERT(mqlog_close(lg) == 0);
     delete_directory(dir);
 }
 
@@ -2280,8 +2280,8 @@ TEST(test_segment_gating) {
     const size_t size = 4096;
     const const char* dir = "/tmp/test_segment_gating";
 
-    log_t* lg = NULL;
-    int rc = log_open(&lg, dir, size, LOG_RDCMT);
+    mqlog_t* lg = NULL;
+    int rc = mqlog_open(&lg, dir, size, MQLOG_RDCMT);
     ASSERT(rc == 0);
     ASSERT(lg);
 
@@ -2297,41 +2297,41 @@ TEST(test_segment_gating) {
         0x84, 0x8a, 0xb0, 0xcb, 0x41, 0x98, 0xca, 0xa1
     };
 
-    ssize_t written = log_write(lg, data, data_size);
+    ssize_t written = mqlog_write(lg, data, data_size);
     ASSERT(data_size == (size_t)written);
 
     uint64_t offset = 0;
     struct frame fr;
 
-    ssize_t read = log_read(lg, offset, &fr);
+    ssize_t read = mqlog_read(lg, offset, &fr);
     ASSERT(read == ELNORD);
 
-    ssize_t synced = log_sync(lg);
+    ssize_t synced = mqlog_sync(lg);
     ASSERT((size_t)synced == 1);
 
-    written = log_write(lg, data, data_size);
+    written = mqlog_write(lg, data, data_size);
     ASSERT(data_size == (size_t)written);
 
-    read = log_read(lg, offset, &fr);
+    read = mqlog_read(lg, offset, &fr);
     ASSERT((size_t)read == data_size);
     ++offset;
     size_t payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == data_size);
 
-    read = log_read(lg, offset, &fr);
+    read = mqlog_read(lg, offset, &fr);
     ASSERT(read == ELNORD);
 
-    synced = log_sync(lg);
+    synced = mqlog_sync(lg);
     ASSERT(synced > 0);
 
-    read = log_read(lg, offset, &fr);
+    read = mqlog_read(lg, offset, &fr);
     ASSERT((size_t)read == data_size);
     payload_size = frame_payload_size(&fr);
     ASSERT(payload_size == data_size);
 
     // TODO verify written payload
 
-    ASSERT(log_close(lg) == 0);
+    ASSERT(mqlog_close(lg) == 0);
     delete_directory(dir);
 }
 
@@ -2354,12 +2354,12 @@ static char* rand_string(char* str, size_t size) {
 }
 
 struct thread_args {
-    log_t*        lg; struct string data[128];
+    mqlog_t*        lg; struct string data[128];
 };
 
 void* producer(void* arg) {
     struct thread_args* args = (struct thread_args*)arg;
-    log_t* lg = (log_t*)args->lg;
+    mqlog_t* lg = (mqlog_t*)args->lg;
 
     srand(time(NULL));
 
@@ -2368,7 +2368,7 @@ void* producer(void* arg) {
         sstr->len = rand() % 128 + 1;
         rand_string(sstr->str, sstr->len);
 
-        log_write(lg, sstr->str, sstr->len);
+        mqlog_write(lg, sstr->str, sstr->len);
     }
 
     return NULL;
@@ -2376,13 +2376,13 @@ void* producer(void* arg) {
 
 void* consumer(void* arg) {
     struct thread_args* args = (struct thread_args*)arg;
-    log_t* lg = (log_t*)args->lg;
+    mqlog_t* lg = (mqlog_t*)args->lg;
 
     uint64_t offset = 0;
     struct frame fr;
 
     for (size_t i = 0; i < 128; ++i) {
-        ssize_t read = log_read(lg, offset, &fr);
+        ssize_t read = mqlog_read(lg, offset, &fr);
 
         if (read == ELOSLOW) {
             fprintf(stderr, "Consumer lost data: too slow\n");
@@ -2413,8 +2413,8 @@ TEST(test_concurrency) {
     // TODO remove this line
     delete_directory(dir);
 
-    log_t* lg = NULL;
-    int rc = log_open(&lg, dir, size, 0);
+    mqlog_t* lg = NULL;
+    int rc = mqlog_open(&lg, dir, size, 0);
     ASSERT(rc == 0);
     ASSERT(lg);
 
@@ -2447,6 +2447,6 @@ TEST(test_concurrency) {
                prod_args.data[i].len) == 0);
     }
 
-    ASSERT(log_close(lg) == 0);
+    ASSERT(mqlog_close(lg) == 0);
     delete_directory(dir);
 }

@@ -1,5 +1,5 @@
-#ifndef BTREE_H_
-#define BTREE_H_
+#ifndef MQLOG_BTREE_H_
+#define MQLOG_BTREE_H_
 
 /*
  * Implements a B+tree

@@ -1,7 +1,7 @@
 #include "segment.h"
 #include "prot.h"
 #include "util.h"
-#include "logerrno.h"
+#include "mqlogerrno.h"
 #include "cassert.h"
 #include <string.h>
 #include <stdlib.h>

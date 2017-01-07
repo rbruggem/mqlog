@@ -21,7 +21,7 @@ size_t pagesize() {
 }
 
 int file_exists(const char* filename) {
-    struct stat st = {0};
+    struct stat st;
     int i = stat(filename, &st);
     if (i == 0) {
         return 1;

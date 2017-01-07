@@ -653,7 +653,7 @@ TEST(btree_test6) {
 
 TEST(test_segment_write_read) {
     const size_t size = 10485760; // 10 MB
-    const const char* dir = "/tmp/test_segment_write_read";
+    const char* dir = "/tmp/test_segment_write_read";
 
     segment_t* sgm = NULL;
     int rc = segment_open(&sgm, dir, 0, size, 0);
@@ -695,7 +695,7 @@ TEST(test_segment_write_read) {
 
 TEST(test_segment_write_close_open_read) {
     const size_t size = 10485760; // 10 MB
-    const const char* dir = "/tmp/test_segment_write_close_open_read/";
+    const char* dir = "/tmp/test_segment_write_close_open_read/";
 
     segment_t* sgm = NULL;
     int rc = segment_open(&sgm, dir, 0, size, 0);
@@ -782,7 +782,7 @@ TEST(test_segment_write_no_capacity) {
 
 TEST(test_log_write_read) {
     const size_t size = 1048576; // 1 MB
-    const const char* dir = "/tmp/test_log_write_read";
+    const char* dir = "/tmp/test_log_write_read";
 
     mqlog_t* lg = NULL;
     int rc = mqlog_open(&lg, dir, size, 0);
@@ -824,7 +824,7 @@ TEST(test_log_write_read) {
 
 TEST(test_log_write_close_open_read) {
     const size_t size = 10485760; // 10 MB
-    const const char* dir = "/tmp/test_log_write_close_open_read";
+    const char* dir = "/tmp/test_log_write_close_open_read";
 
     mqlog_t* lg = NULL;
     int rc = mqlog_open(&lg, dir, size, 0);
@@ -873,7 +873,7 @@ TEST(test_log_write_close_open_read) {
 
 TEST(test_log_write_overflow_read) {
     const size_t size = 8192;
-    const const char* dir = "/tmp/test_log_write_overflow_read";
+    const char* dir = "/tmp/test_log_write_overflow_read";
 
     mqlog_t* lg = NULL;
     int rc = mqlog_open(&lg, dir, size, 0);
@@ -978,7 +978,7 @@ TEST(test_log_write_overflow_read) {
 
 TEST(test_log_single_write_greater_segment_size) {
     const size_t size = 4096;
-    const const char* dir = "/tmp/test_log_single_write_greater_segment_size";
+    const char* dir = "/tmp/test_log_single_write_greater_segment_size";
 
     mqlog_t* lg = NULL;
     int rc = mqlog_open(&lg, dir, size, 0);
@@ -2278,7 +2278,7 @@ TEST(test_log_single_write_greater_segment_size) {
 
 TEST(test_segment_gating) {
     const size_t size = 4096;
-    const const char* dir = "/tmp/test_segment_gating";
+    const char* dir = "/tmp/test_segment_gating";
 
     mqlog_t* lg = NULL;
     int rc = mqlog_open(&lg, dir, size, MQLOG_RDCMT);
@@ -2408,7 +2408,7 @@ void* consumer(void* arg) {
 
 TEST(test_concurrency) {
     const size_t size = 4096;
-    const const char* dir = "/tmp/test_concurrency";
+    const char* dir = "/tmp/test_concurrency";
 
     // TODO remove this line
     delete_directory(dir);

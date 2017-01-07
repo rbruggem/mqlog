@@ -10,7 +10,8 @@ LDFLAGS+=-L$(LOGLIBPATH)
 program := src/test
 
 CFLAGS+=-Wall -Wextra -Werror -Winit-self -std=c99 -pedantic -fPIC
-CFLAGS+=-fstack-protector-strong -Wformat -Werror=format-security
+#CFLAGS+=-fstack-protector-strong # available with gcc >= 4.9.x
+CFLAGS+=-Wformat -Werror=format-security
 LDFLAGS+=-Wl,-O1 -Wl,--discard-all -Wl,-z,relro
 
 sources := $(wildcard $(SRC)/*.c)

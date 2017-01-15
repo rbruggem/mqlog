@@ -39,7 +39,8 @@ build: $(libraries)
 
 .PHONY: clean
 clean:
-	$(RM) $(objects) $(dependencies) $(libraries) $(SRC)/*.gcda $(SRC)/*.gcno lcov-html cov.info
+	$(RM) $(objects) $(dependencies) $(libraries) $(SRC)/*.gcda \
+          $(SRC)/*.gcno $(SRC)/*.gcov lcov-html cov.info
 	@$(MAKE) -C test clean
 
 .PHONY: test
@@ -53,11 +54,9 @@ test-valgrind:
 .PHONY: gcov
 gcov:
 	@$(MAKE) CFLAGS+="$(CFLAGS) --coverage" LDFLAGS+="$(LDFLAGS) --coverage" build
-	@$(MAKE) -C test gcov
 
 .PHONY: lcov
-lcov: gcov
-	@make -C test run
+lcov:
 	@geninfo --no-checksum -o cov.info src
 	@genhtml --legend -o lcov-html cov.info
 

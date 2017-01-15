@@ -44,10 +44,6 @@ clean:
 run: build
 	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(MQLOGLIBPATH) ./$(program)
 
-.PHONY: gcov
-gcov:
-	@$(MAKE) CFLAGS+="$(CFLAGS) --coverage" LDFLAGS+="$(LDFLAGS) --coverage" build
-
 .PHONY: valgrind
 valgrind: build
 	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):${MQLOGLIBPATH} \

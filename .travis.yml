@@ -1,5 +1,7 @@
 language: c
-script: make && make test-valgrind
+script: make gcov && make test-valgrind
+after_success:
+    - coveralls --exclude test
 compiler:
     - gcc
     - clang
@@ -9,4 +11,7 @@ addons:
             - ubuntu-toolchain-r-test
         packages:
             - valgrind
+            - lcov
+before_install:
+    - pip install --user cpp-coveralls
 sudo: false

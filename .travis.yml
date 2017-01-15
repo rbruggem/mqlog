@@ -13,5 +13,6 @@ addons:
             - valgrind
             - lcov
 before_install:
+    - pip install --user urllib3[secure]
     - pip install --user cpp-coveralls
 sudo: false

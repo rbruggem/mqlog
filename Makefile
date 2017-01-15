@@ -4,7 +4,7 @@ CFLAGS+=-O3 -g
 LIBS+=
 LDFLAGS+=
 
-libraries := src/liblog.so src/liblog.a
+libraries := src/libmqlog.so src/libmqlog.a
 
 CFLAGS+=-Wall -Wextra -Werror -Winit-self -std=c99 -pedantic -fPIC
 #CFLAGS+=-fstack-protector-strong # available with gcc >= 4.9.x

@@ -4,7 +4,7 @@ LOGLIBPATH:=../src
 
 CFLAGS+=-O0 -g -I$(LOGLIBPATH) -pthread
 CFLAGS+=-D_XOPEN_SOURCE=500  # needed for `ftw`
-LIBS+=-llog -pthread
+LIBS+=-lmqlog -pthread
 LDFLAGS+=-L$(LOGLIBPATH)
 
 program := src/test

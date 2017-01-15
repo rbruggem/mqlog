@@ -3,3 +3,10 @@ script: make && make test-valgrind
 compiler:
     - gcc
     - clang
+addons:
+    apt:
+        sources:
+            - ubuntu-toolchain-r-test
+        packages:
+            - valgrind
+sudo: false

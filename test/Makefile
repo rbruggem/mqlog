@@ -1,11 +1,11 @@
 SRC=src
 
-LOGLIBPATH:=../src
+MQLOGLIBPATH:=../src
 
-CFLAGS+=-O0 -g -I$(LOGLIBPATH) -pthread
+CFLAGS+=-O0 -g -I$(MQLOGLIBPATH) -pthread
 CFLAGS+=-D_XOPEN_SOURCE=500  # needed for `ftw`
 LIBS+=-lmqlog -pthread
-LDFLAGS+=-L$(LOGLIBPATH)
+LDFLAGS+=-L$(MQLOGLIBPATH)
 
 program := src/test
 
@@ -42,7 +42,7 @@ clean:
 
 .PHONY: run
 run: build
-	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(LOGLIBPATH) ./$(program)
+	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(MQLOGLIBPATH) ./$(program)
 
 .PHONY: gcov
 gcov:
@@ -50,7 +50,7 @@ gcov:
 
 .PHONY: valgrind
 valgrind: build
-	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):${PWD}/../src \
+	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):${MQLOGLIBPATH} \
     valgrind \
             --tool=memcheck \
             --read-var-info=yes \

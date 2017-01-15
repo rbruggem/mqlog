@@ -492,7 +492,7 @@ ssize_t segment_write(segment_t* sgm, const void* buf, size_t size) {
         return rc;
     }
 
-    LOG_PRINT("segment_write %p, "
+    MQLOG_PRINT("segment_write %p, "
               "curr offset pair: (%"PRIu32", %"PRIu32"), "
               "new offset pair (%"PRIu32", %"PRIu32")\n",
               (void*)sgm,

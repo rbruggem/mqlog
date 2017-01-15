@@ -17,11 +17,11 @@ int          ensure_directory(const char*);
 int          append_file_to_dir(char*, size_t, const char*, const char*);
 int          has_suffix(const char*, const char*);
 
-#ifdef LOG_DEBUG
+#ifdef MQLOG_DEBUG
 #include <stdio.h>
-#define LOG_PRINT(...) printf(__VA_ARGS__)
+#define MQLOG_PRINT(...) printf(__VA_ARGS__)
 #else
-#define LOG_PRINT(...) do {} while (0);
+#define MQLOG_PRINT(...) do {} while (0);
 #endif
 
 #ifdef UNUSED

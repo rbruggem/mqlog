@@ -1,5 +1,5 @@
-#ifndef LOG_TESTFW_H
-#define LOG_TESTFW_H
+#ifndef MQLOG_TESTFW_H
+#define MQLOG_TESTFW_H
 
 #include <stdio.h>
 

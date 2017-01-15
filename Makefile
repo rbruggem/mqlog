@@ -46,6 +46,10 @@ clean:
 test: build
 	@$(MAKE) -C test run
 
+.PHONY: test-valgrind
+test-valgrind: test-valgrind
+	@$(MAKE) -C test valgrind
+
 .PHONY: gcov
 gcov:
 	@$(MAKE) CFLAGS+="$(CFLAGS) --coverage" LDFLAGS+="$(LDFLAGS) --coverage" build

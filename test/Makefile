@@ -10,8 +10,15 @@ LDFLAGS+=-L$(MQLOGLIBPATH)
 program := src/test
 
 CFLAGS+=-Wall -Wextra -Werror -Winit-self -std=c99 -pedantic -fPIC
-#CFLAGS+=-fstack-protector-strong # available with gcc >= 4.9.x
 CFLAGS+=-Wformat -Werror=format-security
+
+ifeq ($(shell expr `$(CC) -v 2> /dev/stdout  | grep -i gcc | tail -n 1 | sed -e 's/.*\(gcc\).*/\1/I'`),gcc)
+GCC_GTEQ_490 := $(shell expr `gcc -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \>= 40900)
+ifeq ($(GCC_GTEQ_490),1)
+CFLAGS+=-fstack-protector-strong # available with gcc >= 4.9.x
+endif
+endif
+
 LDFLAGS+=-Wl,-O1 -Wl,--discard-all -Wl,-z,relro
 
 sources := $(wildcard $(SRC)/*.c)

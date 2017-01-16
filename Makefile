@@ -7,9 +7,16 @@ LDFLAGS+=
 libraries := src/libmqlog.so src/libmqlog.a
 
 CFLAGS+=-Wall -Wextra -Werror -Winit-self -std=c99 -pedantic -fPIC
-#CFLAGS+=-fstack-protector-strong # available with gcc >= 4.9.x
 CFLAGS+=-Wformat -Werror=format-security
 CFLAGS+=-D_BSD_SOURCE # needed for `madvise` and `ftruncate`
+
+ifeq ($(shell expr `$(CC) -v 2> /dev/stdout  | grep -i gcc | tail -n 1 | sed -e 's/.*\(gcc\).*/\1/I'`),gcc)
+GCC_GTEQ_490 := $(shell expr `$(CC) -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \>= 40900)
+ifeq ($(GCC_GTEQ_490),1)
+CFLAGS+=-fstack-protector-strong # available with gcc >= 4.9.x
+endif
+endif
+
 LDFLAGS+=-Wl,-O1 -Wl,--discard-all -Wl,-z,relro -shared
 
 sources := $(wildcard $(SRC)/*.c)
@@ -41,19 +48,19 @@ build: $(libraries)
 clean:
 	$(RM) $(objects) $(dependencies) $(libraries) $(SRC)/*.gcda \
           $(SRC)/*.gcno $(SRC)/*.gcov lcov-html cov.info
-	@$(MAKE) -C test clean
+	@$(MAKE) CC=$(CC) -C test clean
 
 .PHONY: test
 test: build
-	@$(MAKE) -C test run
+	@$(MAKE) CC=$(CC) -C test run
 
 .PHONY: test-valgrind
 test-valgrind:
-	@$(MAKE) -C test valgrind
+	@$(MAKE) CC=$(CC) -C test valgrind
 
 .PHONY: gcov
 gcov:
-	@$(MAKE) CFLAGS+="$(CFLAGS) --coverage" LDFLAGS+="$(LDFLAGS) --coverage" build
+	@$(MAKE) CC=$(CC) CFLAGS+="$(CFLAGS) --coverage" LDFLAGS+="$(LDFLAGS) --coverage" build
 
 .PHONY: lcov
 lcov:

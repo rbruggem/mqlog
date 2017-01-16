@@ -35,7 +35,7 @@ build: $(libraries)
 	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 %.a: $(objects)
-	$(AR) rcs -o $@ $^
+	$(AR) rcs $@ $^
 
 .PHONY: clean
 clean:

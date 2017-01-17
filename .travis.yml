@@ -1,17 +1,54 @@
 language: c
-script: make gcov && make test-valgrind
-after_success:
-    - coveralls --exclude test
-compiler:
-    - gcc
-    - clang
-addons:
-    apt:
-        sources:
+
+matrix:
+  include:
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          sources:
             - ubuntu-toolchain-r-test
-        packages:
+          packages:
+            - gcc-4.6
             - valgrind
             - lcov
+      env: COMPILER=gcc-4.6 COVERALL_OPTS='--gcov gcov-4.6'
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-4.9
+            - valgrind
+            - lcov
+      env: COMPILER=gcc-4.9 COVERALL_OPTS='--gcov gcov-4.9'
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-5
+            - valgrind
+            - lcov
+      env: COMPILER=gcc-5 COVERALL_OPTS='--gcov gcov-5'
+    - os: linux
+      compiler: clang
+      env: COMPILER=clang COVERALL_OPTS=''
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - valgrind
+            - lcov
+
+script: CC=$COMPILER make gcov && CC=$COMPILER make test-valgrind
+after_success:
+    - coveralls $COVERALL_OPTS --exclude test
 before_install:
     - pip install --user urllib3[secure]
     - pip install --user cpp-coveralls

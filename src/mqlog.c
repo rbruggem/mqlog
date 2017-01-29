@@ -271,7 +271,11 @@ ssize_t mqlog_write(mqlog_t* lg, const void* buf, size_t size) {
         return 0;
     }
 
-    if (pthread_mutex_trylock(&lg->lock) != 0) {
+    int rc = pthread_mutex_trylock(&lg->lock);
+    if (rc == EBUSY) {
+        return ELLOCK;
+    }
+    if (rc != 0) {
         return errno == EBUSY ? ELLOCK : ELLCKOP;
     }
 

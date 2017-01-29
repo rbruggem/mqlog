@@ -1,405 +1,17 @@
 #include "testfw.h"
-#include <mbptree.h>
-#include <segment.h>
-#include <pthread.h>
+#include "test_util.h"
 #include <mqlog.h>
 #include <util.h>
-#include <time.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <inttypes.h>
-#include <ftw.h>
 #include <assert.h>
 
-static int remove_callback(const char* file,
-                           const struct stat* UNUSED(stat),
-                           int UNUSED(typeflag),
-                           struct FTW* UNUSED(ftwbuf)) {
-    return remove(file);
-}
-
-static int delete_directory(const char* dir) {
-    const int max_fds = 64;
-    return nftw(dir, remove_callback, max_fds, FTW_DEPTH | FTW_PHYS);
-}
-
-static int mbptree_compare(const mbptree_t* tree, const uint64_t* arr, int w) {
-    mbptree_bfs_iterator_t* iterator = mbptree_bfs_first(tree);
-    for (int i = 0; mbptree_bfs_iterator_valid(iterator);
-           iterator = mbptree_bfs_iterator_next(iterator), ++i) {
-
-        for (int j = 0;; ++j) {
-            if ((int)*(arr + i * w) != mbptree_bfs_iterator_leaf(iterator)) {
-                return 0;
-            }
-            uint64_t key;
-            if (mbptree_bfs_iterator_key(iterator, j, &key) != 0) {
-                break;
-            }
-            if (*(arr + i * w + j + 1) != key) {
-                return 0;
-            }
-        }
-    }
-    free(iterator);
-    return 1;
-}
-
-TEST(mbptree_test1) {
-    const int branch_factor = 3;
-    mbptree_t* tree = mbptree_init(branch_factor);
-    ASSERT(tree != 0);
-
-    const uint64_t result[][3] =
-        {{0, 10, 0},
-           {0, 5, 0},
-           {0, 15, 0},
-             {0, 2, 0},
-             {0, 6, 0},
-             {0, 12, 0},
-             {0, 20, 0},
-               {1, 1, 0},
-               {1, 2, 0},
-               {1, 5, 0},
-               {1, 6, 0},
-               {1, 10, 0},
-               {1, 12, 0},
-               {1, 15, 0},
-               {1, 20, 22}};
-
-    const uint64_t arr[] = {1, 2, 5, 6, 10, 12, 15, 20, 22, 0};
-    for (int i = 0; arr[i] != 0; ++i) {
-        int rc = mbptree_append(tree, arr[i], u64(arr[i]));
-        ASSERT(rc == 0);
-    }
-
-    ASSERT(mbptree_compare(tree, (const uint64_t*)result, branch_factor));
-
-    mbptree_leaf_iterator_t* iterator = mbptree_leaf_floor(tree, 16);
-    ASSERT(iterator);
-    ASSERT(mbptree_leaf_iterator_valid(iterator) == 1);
-    ASSERT(mbptree_leaf_iterator_key(iterator) == 15);
-    free(iterator);
-
-    const uint64_t arr2[] = {25, 27, 30, 33, 34, 35, 36, 37, 49, 55, 100, 0};
-    for (int i = 0; arr2[i] != 0; ++i) {
-        int rc = mbptree_append(tree, arr2[i], u64(arr2[i]));
-        ASSERT(rc == 0);
-    }
-
-    const uint64_t result2[][3] =
-        {{0, 22, 0},
-           {0, 10, 0},
-           {0, 33, 0},
-             {0, 5, 0},
-             {0, 15, 0},
-             {0, 27, 0},
-             {0, 35, 37},
-               {0, 2, 0},
-               {0, 6, 0},
-               {0, 12, 0},
-               {0, 20, 0},
-               {0, 25, 0},
-               {0, 30, 0},
-               {0, 34, 0},
-               {0, 36, 0},
-               {0, 49, 55},
-                 {1, 1, 0},
-                 {1, 2, 0},
-                 {1, 5, 0},
-                 {1, 6, 0},
-                 {1, 10, 0},
-                 {1, 12, 0},
-                 {1, 15, 0},
-                 {1, 20, 0},
-                 {1, 22, 0},
-                 {1, 25, 0},
-                 {1, 27, 0},
-                 {1, 30, 0},
-                 {1, 33, 0},
-                 {1, 34, 0},
-                 {1, 35, 0},
-                 {1, 36, 0},
-                 {1, 37, 0},
-                 {1, 49, 0},
-                 {1, 55, 100}};
-
-    ASSERT(mbptree_compare(tree, (const uint64_t*)result2,  branch_factor));
-
-    int rc = mbptree_append(tree, 8, u64(8));
-    ASSERT(rc == ELIDXNM);
-
-    mbptree_free(tree);
-}
-
-TEST(mbptree_test2) {
-    const int branch_factor = 6;
-    mbptree_t* tree = mbptree_init(branch_factor);
-    ASSERT(tree != 0);
-
-    const uint64_t result[][6] =
-        {{0, 34, 81, 136, 180, 245},
-           {0, 6, 15, 25, 0, 0},
-           {0, 55, 67, 77, 0, 0},
-           {0, 85, 100, 126, 0, 0},
-           {0, 140, 167, 177, 0, 0},
-           {0, 190, 196, 211, 0, 0},
-           {0, 260, 264, 0, 0, 0},
-             {1, 1, 2, 5, 0, 0},
-             {1, 6, 10, 12, 0, 0},
-             {1, 15, 20, 22, 0, 0},
-             {1, 25, 27, 29, 0, 0},
-             {1, 34, 45, 47, 0, 0},
-             {1, 55, 58, 62, 0, 0},
-             {1, 67, 69, 74, 0, 0},
-             {1, 77, 79, 80, 0, 0},
-             {1, 81, 82, 83, 0, 0},
-             {1, 85, 88, 89, 0, 0},
-             {1, 100, 111, 116, 0, 0},
-             {1, 126, 129, 130, 0, 0},
-             {1, 136, 138, 139, 0, 0},
-             {1, 140, 144, 145, 0, 0},
-             {1, 167, 170, 176, 0, 0},
-             {1, 177, 178, 179, 0, 0},
-             {1, 180, 182, 189, 0, 0},
-             {1, 190, 191, 194, 0, 0},
-             {1, 196, 197, 210, 0, 0},
-             {1, 211, 223, 243, 0, 0},
-             {1, 245, 250, 251, 0, 0},
-             {1, 260, 261, 263, 0, 0},
-             {1, 264, 265, 266, 278, 0}};
-
-    const uint64_t arr[] = {
-        1, 2, 5, 6, 10, 12, 15, 20, 22,
-        25, 27, 29, 34, 45, 47, 55, 58, 62,
-        67, 69, 74, 77, 79, 80, 81, 82, 83,
-        85, 88, 89, 100, 111, 116, 126, 129,
-        130, 136, 138, 139, 140, 144, 145,
-        167, 170, 176, 177, 178, 179, 180,
-        182, 189, 190, 191, 194, 196, 197,
-        210, 211, 223, 243, 245, 250, 251,
-        260, 261, 263, 264, 265, 266, 278,
-        0};
-
-    for (int i = 0; arr[i] != 0; ++i) {
-        int rc = mbptree_append(tree, arr[i], u64(arr[i]));
-        ASSERT(rc == 0);
-    }
-
-    ASSERT(mbptree_compare(tree, (const uint64_t*)result, branch_factor));
-    mbptree_free(tree);
-}
-
-TEST(mbptree_test3) {
-    const int branch_factor = 5;
-    mbptree_t* tree = mbptree_init(branch_factor);
-    ASSERT(tree != 0);
-
-    const uint64_t result[][5] =
-        {{0, 67, 136, 0, 0},
-          {0, 15, 34, 0, 0},
-          {0, 81, 100, 0, 0},
-          {0, 167, 180, 196, 245},
-            {0, 5, 10, 0, 0},
-            {0, 22, 27, 0, 0},
-            {0, 47, 58, 0, 0},
-            {0, 74, 79, 0, 0},
-            {0, 83, 88, 0, 0},
-            {0, 116, 129, 0, 0},
-            {0, 139, 144, 0, 0},
-            {0, 176, 178, 0, 0},
-            {0, 189, 191, 0, 0},
-            {0, 210, 223, 0, 0},
-            {0, 251, 261, 264, 0},
-              {1, 1, 2, 0, 0},
-              {1, 5, 6, 0, 0},
-              {1, 10, 12, 0, 0},
-              {1, 15, 20, 0, 0},
-              {1, 22, 25, 0, 0},
-              {1, 27, 29, 0, 0},
-              {1, 34, 45, 0, 0},
-              {1, 47, 55, 0, 0},
-              {1, 58, 62, 0, 0},
-              {1, 67, 69, 0, 0},
-              {1, 74, 77, 0, 0},
-              {1, 79, 80, 0, 0},
-              {1, 81, 82, 0, 0},
-              {1, 83, 85, 0, 0},
-              {1, 88, 89, 0, 0},
-              {1, 100, 111, 0, 0},
-              {1, 116, 126, 0, 0},
-              {1, 129, 130, 0, 0},
-              {1, 136, 138, 0, 0},
-              {1, 139, 140, 0, 0},
-              {1, 144, 145, 0, 0},
-              {1, 167, 170, 0, 0},
-              {1, 176, 177, 0, 0},
-              {1, 178, 179, 0, 0},
-              {1, 180, 182, 0, 0},
-              {1, 189, 190, 0, 0},
-              {1, 191, 194, 0, 0},
-              {1, 196, 197, 0, 0},
-              {1, 210, 211, 0, 0},
-              {1, 223, 243, 0, 0},
-              {1, 245, 250, 0, 0},
-              {1, 251, 260, 0, 0},
-              {1, 261, 263, 0, 0},
-              {1, 264, 265, 266, 278}};
-
-    const uint64_t arr[] = {
-        1, 2, 5, 6, 10, 12, 15, 20, 22,
-        25, 27, 29, 34, 45, 47, 55, 58, 62,
-        67, 69, 74, 77, 79, 80, 81, 82, 83,
-        85, 88, 89, 100, 111, 116, 126, 129,
-        130, 136, 138, 139, 140, 144, 145,
-        167, 170, 176, 177, 178, 179, 180,
-        182, 189, 190, 191, 194, 196, 197,
-        210, 211, 223, 243, 245, 250, 251,
-        260, 261, 263, 264, 265, 266, 278,
-        0};
-
-    for (int i = 0; arr[i] != 0; ++i) {
-        int rc = mbptree_append(tree, arr[i], u64(arr[i]));
-        ASSERT(rc == 0);
-    }
-
-    ASSERT(mbptree_compare(tree, (const uint64_t*)result, branch_factor));
-    mbptree_free(tree);
-}
-
-TEST(test_segment_write_read) {
-    const size_t size = 10485760; // 10 MB
-    const char* dir = "/tmp/test_segment_write_read";
-
-    segment_t* sgm = NULL;
-    int rc = segment_open(&sgm, dir, 0, size, 0);
-    ASSERT(rc == 0);
-    ASSERT(sgm);
-
-    const char* str = "Lorem ipsum dolor sit amet, etc ...";
-    const size_t str_size = strlen(str);
-    ssize_t written = segment_write(sgm, str, str_size);
-    ASSERT(str_size == (size_t)written);
-
-    const char* str2 = "what's up?";
-    const size_t str2_size = strlen(str2);
-    written = segment_write(sgm, str2, str2_size);
-    ASSERT(str2_size == (size_t)written);
-
-    uint64_t offset = 0;
-    struct frame fr;
-
-    ssize_t read = segment_read(sgm, offset, &fr);
-    ASSERT((size_t)read == str_size);
-
-    size_t payload_size = frame_payload_size(&fr);
-    ASSERT(payload_size == str_size);
-    ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
-
-    ++offset;
-    read = segment_read(sgm, offset, &fr);
-    ASSERT((size_t)read == str2_size);
-
-    payload_size = frame_payload_size(&fr);
-    ASSERT(payload_size == str2_size);
-    ASSERT(strncmp((const char*)fr.buffer, str2, payload_size) == 0);
-
-    ASSERT(segment_close(sgm) == 0);
-
-    ASSERT(delete_directory(dir) == 0);
-}
-
-TEST(test_segment_write_close_open_read) {
-    const size_t size = 10485760; // 10 MB
-    const char* dir = "/tmp/test_segment_write_close_open_read/";
-
-    segment_t* sgm = NULL;
-    int rc = segment_open(&sgm, dir, 0, size, 0);
-    ASSERT(rc == 0);
-    ASSERT(sgm);
-
-    const int n = 14434;
-    const size_t n_size = sizeof(n);
-    ssize_t written = segment_write(sgm, &n, n_size);
-    ASSERT(n_size == (size_t)written);
-
-    const double d = 45435.2445;
-    const size_t d_size = sizeof(d);
-    written = segment_write(sgm, &d, d_size);
-    ASSERT(d_size == (size_t)written);
-
-    ASSERT(segment_close(sgm) == 0);
-
-    sgm = NULL;
-    rc = segment_open(&sgm, dir, 0, size, 0);
-    ASSERT(rc == 0);
-    ASSERT(sgm);
-
-    uint64_t offset = 0;
-    struct frame fr;
-
-    ssize_t read = segment_read(sgm, offset, &fr);
-    ASSERT((size_t)read == n_size);
-
-    ++offset;
-    size_t payload_size = frame_payload_size(&fr);
-    ASSERT(payload_size == n_size);
-    int n_read = *(int*)fr.buffer;
-    ASSERT(n == n_read);
-
-    read = segment_read(sgm, offset, &fr);
-    ASSERT((size_t)read == d_size);
-    payload_size = frame_payload_size(&fr);
-    ASSERT(payload_size == d_size);
-    double d_read = *(double*)fr.buffer;
-    ASSERT(d == d_read);
-
-    ASSERT(segment_close(sgm) == 0);
-
-    ASSERT(delete_directory(dir) == 0);
-}
-
-TEST(test_segment_write_no_capacity) {
-    const size_t size = 4096;
-    const char* dir = "/tmp/test_segment_write_no_capacity";
-
-    segment_t* sgm = NULL;
-    int rc =  segment_open(&sgm, dir, 0, size, 0);
-    ASSERT(rc == 0);
-    ASSERT(sgm);
-
-    const size_t block0_size = 3000;
-    unsigned char block0[block0_size];
-    memset(block0, 0, block0_size);
-    ssize_t written = segment_write(sgm, block0, block0_size);
-    ASSERT((size_t)written == block0_size);
-
-    const size_t block1_size = 1000;
-    written = segment_write(sgm, block0, block1_size);
-    ASSERT(written == 1000);
-
-    const size_t block2_size = 1100;
-    written = segment_write(sgm, block0, block2_size);
-    ASSERT(written == ELEOS);
-
-    const size_t block3_size = 5;
-    written = segment_write(sgm, block0, block3_size);
-    ASSERT(written == ELEOS);
-
-    // segment full
-    const size_t block4_size = 3000;
-    written = segment_write(sgm, block0, block4_size);
-    ASSERT(written == ELEOS);
-
-    ASSERT(segment_close(sgm) == 0);
-
-    ASSERT(delete_directory(dir) == 0);
-}
-
-TEST(test_log_write_read) {
+TEST(mqlog_write_read) {
     const size_t size = 1048576; // 1 MB
-    const char* dir = "/tmp/test_log_write_read";
+    const char* dir = "/tmp/mqlog_write_read";
+
+    delete_directory(dir);
 
     mqlog_t* lg = NULL;
     int rc = mqlog_open(&lg, dir, size, 0);
@@ -436,12 +48,13 @@ TEST(test_log_write_read) {
     ASSERT(strncmp((const char*)fr.buffer, str2, payload_size) == 0);
 
     ASSERT(mqlog_close(lg) == 0);
-    delete_directory(dir);
  }
 
-TEST(test_log_write_close_open_read) {
+TEST(mqlog_write_close_open_read) {
     const size_t size = 10485760; // 10 MB
-    const char* dir = "/tmp/test_log_write_close_open_read";
+    const char* dir = "/tmp/mqlog_write_close_open_read";
+
+    delete_directory(dir);
 
     mqlog_t* lg = NULL;
     int rc = mqlog_open(&lg, dir, size, 0);
@@ -485,12 +98,13 @@ TEST(test_log_write_close_open_read) {
     ASSERT(d == d_read);
 
     ASSERT(mqlog_close(lg) == 0);
-    delete_directory(dir);
 }
 
-TEST(test_log_write_overflow_read) {
+TEST(mqlog_write_overflow_read) {
     const size_t size = 8192;
-    const char* dir = "/tmp/test_log_write_overflow_read";
+    const char* dir = "/tmp/mqlog_write_overflow_read";
+
+    delete_directory(dir);
 
     mqlog_t* lg = NULL;
     int rc = mqlog_open(&lg, dir, size, 0);
@@ -590,12 +204,13 @@ TEST(test_log_write_overflow_read) {
     ASSERT(strncmp((const char*)fr.buffer, str, payload_size) == 0);
 
     ASSERT(mqlog_close(lg) == 0);
-    delete_directory(dir);
  }
 
-TEST(test_log_single_write_greater_segment_size) {
+TEST(mqlog_single_write_greater_segment_size) {
     const size_t size = 4096;
-    const char* dir = "/tmp/test_log_single_write_greater_segment_size";
+    const char* dir = "/tmp/mqlog_single_write_greater_segment_size";
+
+    delete_directory(dir);
 
     mqlog_t* lg = NULL;
     int rc = mqlog_open(&lg, dir, size, 0);
@@ -1890,12 +1505,13 @@ TEST(test_log_single_write_greater_segment_size) {
     ASSERT(written == ELNOWCP);
 
     ASSERT(mqlog_close(lg) == 0);
-    delete_directory(dir);
 }
 
-TEST(test_segment_gating) {
+TEST(mqlog_gating) {
     const size_t size = 4096;
-    const char* dir = "/tmp/test_segment_gating";
+    const char* dir = "/tmp/mqlog_gating";
+
+    delete_directory(dir);
 
     mqlog_t* lg = NULL;
     int rc = mqlog_open(&lg, dir, size, MQLOG_RDCMT);
@@ -1949,121 +1565,4 @@ TEST(test_segment_gating) {
     // TODO verify written payload
 
     ASSERT(mqlog_close(lg) == 0);
-    delete_directory(dir);
-}
-
-struct string {
-    size_t len;
-    char   str[128];
-};
-
-static char* rand_string(char* str, size_t size) {
-    const char charset[] = "abcdefghijklmnopqrstuvwxyz";
-    if (size) {
-        --size;
-        for (size_t n = 0; n < size; n++) {
-            int key = rand() % (int)(sizeof charset - 1);
-            str[n] = charset[key];
-        }
-        str[size] = '\0';
-    }
-    return str;
-}
-
-struct thread_args {
-    mqlog_t*        lg; struct string data[128];
-};
-
-void* producer(void* arg) {
-    struct thread_args* args = (struct thread_args*)arg;
-    mqlog_t* lg = (mqlog_t*)args->lg;
-
-    srand(time(NULL));
-
-    for (size_t i = 0; i < 128; ++i) {
-        struct string* sstr = &args->data[i];
-        sstr->len = rand() % 128 + 1;
-        rand_string(sstr->str, sstr->len);
-
-        mqlog_write(lg, sstr->str, sstr->len);
-    }
-
-    return NULL;
-}
-
-void* consumer(void* arg) {
-    struct thread_args* args = (struct thread_args*)arg;
-    mqlog_t* lg = (mqlog_t*)args->lg;
-
-    uint64_t offset = 0;
-    struct frame fr;
-
-    for (size_t i = 0; i < 128; ++i) {
-        ssize_t read = mqlog_read(lg, offset, &fr);
-
-        if (read == ELOSLOW) {
-            fprintf(stderr, "Consumer lost data: too slow\n");
-            break;
-        }
-
-        if (read == ELNORD || read == ELINVHD) {
-            sched_yield();
-            --i;
-            continue;
-        }
-
-        assert(read > 0);
-
-        struct string* sstr = &args->data[i];
-        sstr->len = frame_payload_size(&fr);
-        memcpy(sstr->str, fr.buffer, sstr->len);
-        ++offset;
-    }
-
-    return NULL;
-}
-
-TEST(test_concurrency) {
-    const size_t size = 4096;
-    const char* dir = "/tmp/test_concurrency";
-
-    // TODO remove this line
-    delete_directory(dir);
-
-    mqlog_t* lg = NULL;
-    int rc = mqlog_open(&lg, dir, size, 0);
-    ASSERT(rc == 0);
-    ASSERT(lg);
-
-    struct thread_args prod_args = {
-        .lg = lg
-    };
-
-    struct thread_args cons_args = {
-        .lg = lg
-    };
-
-    pthread_t prod0, cons0;
-
-    rc = pthread_create(&prod0, NULL, producer, (void*)&prod_args);
-    ASSERT(rc == 0);
-
-    rc = pthread_create(&cons0, NULL, consumer, (void*)&cons_args);
-    ASSERT(rc == 0);
-
-    rc = pthread_join(prod0, NULL);
-    ASSERT(rc == 0);
-
-    rc = pthread_join(cons0, NULL);
-    ASSERT(rc == 0);
-
-    for (int i = 0; i < 128; ++i) {
-        ASSERT(prod_args.data[i].len == cons_args.data[i].len);
-        ASSERT(strncmp(prod_args.data[i].str,
-               cons_args.data[i].str,
-               prod_args.data[i].len) == 0);
-    }
-
-    ASSERT(mqlog_close(lg) == 0);
-    delete_directory(dir);
 }

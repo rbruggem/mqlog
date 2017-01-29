@@ -4,7 +4,7 @@ MQLOGLIBPATH:=../src
 
 CFLAGS+=-O0 -g -I$(MQLOGLIBPATH) -pthread
 CFLAGS+=-D_XOPEN_SOURCE=500  # needed for `ftw`
-LIBS+=-lmqlog -pthread
+LIBS+=-lmqlog -pthread -lrt
 LDFLAGS+=-L$(MQLOGLIBPATH)
 
 program := src/test

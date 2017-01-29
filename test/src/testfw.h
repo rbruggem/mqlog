@@ -13,7 +13,7 @@ int testfw_run();
 #define TEST(name) void name(int*); void __attribute__((constructor)) pre_##name() {testfw_add(name, #name);} void name(int* __errors __attribute__((unused)))
 
 #define FAILED(name) fprintf(stderr, "[ %sFAILED%s ] %s (%s:%d)\n", RED, NEUTRAL, name, __FILE__, __LINE__)
-#define PASSED(name) printf("[ %sPASSED%s ] %s\n", GREEN, NEUTRAL, name);
+#define PASSED(name, sec) printf("[ %sPASSED%s ] %s (%.5fs)\n", GREEN, NEUTRAL, name, sec);
 
 #define ASSERT(stmt) if (!(stmt)) {++(*__errors); FAILED(__func__);}
 

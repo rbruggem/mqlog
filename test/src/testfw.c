@@ -46,9 +46,18 @@ int testfw_run(const char* test_name) {
             strncmp(elem->test_name, test_name, strlen(elem->test_name)) == 0) ||
             test_name == NULL) {
 
+            struct timespec tstart={0,0}, tend={0,0};
+            clock_gettime(CLOCK_MONOTONIC, &tstart);
+
             elem->test_fn(&errors);
+
+            clock_gettime(CLOCK_MONOTONIC, &tend);
+
+            const double sec = ((double)tend.tv_sec + 1.0e-9*tend.tv_nsec) -
+                               ((double)tstart.tv_sec + 1.0e-9*tstart.tv_nsec);
+
             if (errors == 0) {
-                PASSED(elem->test_name);
+                PASSED(elem->test_name, sec);
             }
         }
 

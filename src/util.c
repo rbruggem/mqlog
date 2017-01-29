@@ -5,17 +5,6 @@
 #include <sys/stat.h>
 #include <string.h>
 
-int pow2(uint64_t n) {
-    unsigned int one_bits = 0;
-    while(n && one_bits <= 1) {
-        if ((n & 1) == 1) {
-            one_bits++;
-        }
-        n >>= 1;
-    }
-    return one_bits == 1;
-}
-
 size_t pagesize() {
     return sysconf(_SC_PAGESIZE);
 }

@@ -8,7 +8,6 @@
 #define max(x, y) ((x) > (y) ? (x) : (y))
 #define min(x, y) ((x) < (y) ? (x) : (y))
 
-int          pow2(uint64_t);
 size_t       pagesize() __attribute__((const));
 int          file_exists(const char*);
 ssize_t      file_size(const char*);

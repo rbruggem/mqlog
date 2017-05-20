@@ -1,5 +1,6 @@
 #include "testfw.h"
 #include <btree.h>
+#include <mbptree.h>
 #include <segment.h>
 #include <pthread.h>
 #include <mqlog.h>
@@ -649,6 +650,22 @@ TEST(btree_test6) {
 
     int rc = btree_free(tree);
     ASSERT(rc == 0);
+}
+
+TEST(mbptree_test) {
+    mbptree_t* tree = mbptree_init(3);
+    ASSERT(tree != 0);
+
+    uint64_t arr[] = {1, 2, 5, 6, 10, 12, 15, 20, 22, 0};
+    for (int i = 0; arr[i] != 0; ++i) {
+        int rc = mbptree_append(tree, arr[i], u64(arr[i]));
+        ASSERT(rc == 0);
+
+        printf("\n----- Add %"PRId64"\n", arr[i]);
+        mbptree_print(tree);
+    }
+
+    mbptree_free(tree);
 }
 
 TEST(test_segment_write_read) {

@@ -17,6 +17,7 @@ To generate test code coverage (requires `lcov` package)
 ```
 make clean
 make gcov
+make test
 make lcov
 ```
 Now open lcov-html/index.html with your favourite browser

@@ -29,5 +29,7 @@
 #define ELWOFFS -25 // failed to find write offset
 #define ELLDSGM -26 // failed to load segments
 #define ELLCKOP -28 // failed on lock operation
+#define ELIDXPC -29 // index operation panic
+#define ELIDXLK -30 // index is locked
 
 #endif

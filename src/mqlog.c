@@ -1,7 +1,7 @@
 #include "mqlog.h"
 #include "segment.h"
 #include "util.h"
-#include "btree.h"
+#include "mbptree.h"
 #include <string.h>
 #include <dirent.h>
 #include <assert.h>
@@ -16,7 +16,7 @@ struct mqlog {
     size_t          size;
     unsigned int    flags;
     char            dir[MAX_DIR_SIZE];
-    btree_t*        index;
+    mbptree_t*      index;
     pthread_mutex_t lock;
 };
 
@@ -36,13 +36,15 @@ static int create_segment(segment_t** sgm, uint64_t base_offset, mqlog_t* lg) {
     return 0;
 }
 
-static ssize_t mqlog_write_try(mqlog_t* lg, const void* buf, size_t size) {
+static ssize_t mqlog_trywrite(mqlog_t* lg, const void* buf, size_t size) {
+    // TODO: break this function up into small functions
+
     // TODO: this is not thread safe.
-    const struct btree_node_data* node_data = btree_max(lg->index);
     segment_t* sgm = NULL;
     unsigned int new_segment = 0;
-    if (node_data) {
-        sgm = node_data->value;
+    mbptree_value_t value;
+    if (mbptree_last_value(lg->index, &value) == 0) {
+        sgm = (segment_t*)value.addr;
     } else {
         // This is the first segment
         new_segment = 1;
@@ -83,13 +85,15 @@ static ssize_t mqlog_write_try(mqlog_t* lg, const void* buf, size_t size) {
             segment_close(sgm);
             return ELNOWCP;
         }
-    } else {
-
     }
 
     if (new_segment) {
         const uint64_t base_offset = segment_base_offset(sgm);
-        if (btree_insert(lg->index, base_offset, sgm) != 0) {
+        int rc = mbptree_append(lg->index, base_offset, addr(sgm));
+        if (rc == ELIDXPC) {
+            segment_close(sgm);
+            return rc;
+        } else if (rc != 0) {
             segment_close(sgm);
             return ELIDXOP;
         }
@@ -98,21 +102,41 @@ static ssize_t mqlog_write_try(mqlog_t* lg, const void* buf, size_t size) {
     return written;
 }
 
-static ssize_t mqlog_read_try(const mqlog_t* lg,
-                            uint64_t offset,
-                            struct frame* fr) {
+static ssize_t mqlog_tryread(mqlog_t* lg,
+                             uint64_t offset,
+                             struct frame* fr) {
     // Find the segment the offset is located.
     // This can return `prev` or `curr` segment.
-    btree_iterator_t* iter = btree_iterator_find_le(lg->index, offset);
-    if (!btree_iterator_valid(iter)) {
-        free(iter);
+    int rc = pthread_mutex_trylock(&lg->lock);
+    if (rc == EBUSY) {
+        return ELLOCK;
+    }
+    if (rc != 0) {
+        return errno == EBUSY ? ELLOCK : ELLCKOP;
+    }
+
+    mbptree_leaf_iterator_t* iterator;
+    rc = mbptree_leaf_floor(lg->index, offset, &iterator);
+    if (rc != 0) {
+        return rc;
+    }
+
+    if (!mbptree_leaf_iterator_valid(iterator)) {
+        free(iterator);
+        if (pthread_mutex_unlock(&lg->lock) != 0) {
+            return ELLCKOP;
+        }
         return ELNORD;
     }
 
-    const struct btree_node_data* node_data = btree_iterator_data(iter);
-    const segment_t* sgm = (const segment_t*)node_data->value;
+    if (pthread_mutex_unlock(&lg->lock) != 0) {
+        return ELLCKOP;
+    }
 
-    free(iter);
+    mbptree_value_t value = mbptree_leaf_iterator_value(iterator);
+    const segment_t* sgm = (const segment_t*)value.addr;
+
+    free(iterator);
 
     uint64_t base_offset = segment_base_offset(sgm);
     uint64_t relative_offset = offset - base_offset;
@@ -145,7 +169,11 @@ static int load_segments(mqlog_t* lg) {
                     return ELLDSGM;
                 }
 
-                if (btree_insert(lg->index, offset, sgm) != 0) {
+                rc = mbptree_append(lg->index, offset, addr(sgm));
+                if (rc == ELIDXPC) {
+                    segment_close(sgm);
+                    return rc;
+                } else if (rc != 0) {
                     segment_close(sgm);
                     return ELLDSGM;
                 }
@@ -183,7 +211,7 @@ int mqlog_open(mqlog_t** lg_ptr,
 
     lg->flags = flags;
 
-    lg->index = btree_init(BRANCH_FACTOR);
+    lg->index = mbptree_init(BRANCH_FACTOR);
     if (!lg->index) {
         mqlog_close(lg);
         return ELIDXCR;
@@ -194,7 +222,11 @@ int mqlog_open(mqlog_t** lg_ptr,
         return ELLCKOP;
     }
 
-    load_segments(lg);
+    int rc = load_segments(lg);
+    if (rc != 0) {
+        mqlog_close(lg);
+        return  rc;
+    }
 
     *lg_ptr = lg;
 
@@ -205,19 +237,25 @@ int mqlog_close(mqlog_t* lg) {
     int errors = 0;
 
     if (lg->index) {
-        btree_iterator_t* iter = btree_iterator_head(lg->index);
-        for (; btree_iterator_valid(iter); iter = btree_iterator_next(iter)) {
+        mbptree_leaf_iterator_t* iterator;
+        int rc = mbptree_leaf_first(lg->index, &iterator);
+        if (rc != 0) {
+            return rc;
+        }
 
-            const struct btree_node_data* node_data = btree_iterator_data(iter);
-            segment_t* sgm = (segment_t*)node_data->value;
+        for (; mbptree_leaf_iterator_valid(iterator);
+               iterator = mbptree_leaf_iterator_next(iterator)) {
+
+            mbptree_value_t value = mbptree_leaf_iterator_value(iterator);
+            segment_t* sgm = (segment_t*)value.addr;
             if (segment_close(sgm) != 0) {
                 ++errors;
             }
         }
 
-        free(iter);
+        free(iterator);
 
-        if (btree_free(lg->index) != 0) {
+        if (mbptree_free(lg->index) != 0) {
             ++errors;
         }
     }
@@ -237,7 +275,7 @@ ssize_t mqlog_write(mqlog_t* lg, const void* buf, size_t size) {
         return errno == EBUSY ? ELLOCK : ELLCKOP;
     }
 
-    ssize_t written = mqlog_write_try(lg, buf, size);
+    ssize_t written = mqlog_trywrite(lg, buf, size);
 
     if (pthread_mutex_unlock(&lg->lock) != 0) {
         return ELLCKOP;
@@ -246,16 +284,15 @@ ssize_t mqlog_write(mqlog_t* lg, const void* buf, size_t size) {
     return written;
 }
 
-ssize_t mqlog_read(const mqlog_t* lg, uint64_t offset, struct frame* fr) {
-    ssize_t read = mqlog_read_try(lg, offset, fr);
-    return read;
+ssize_t mqlog_read(mqlog_t* lg, uint64_t offset, struct frame* fr) {
+    return mqlog_tryread(lg, offset, fr);
 }
 
 ssize_t mqlog_sync(const mqlog_t* lg) {
     // TODO this only syncs the last segment
-    const struct btree_node_data* node_data = btree_max(lg->index);
-    if (node_data) {
-        return segment_sync((segment_t*)node_data->value);
+    mbptree_value_t value;
+    if (mbptree_last_value(lg->index, &value) == 0) {
+        return segment_sync((segment_t*)value.addr);
     }
 
     return 0;

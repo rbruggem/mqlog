@@ -31,5 +31,6 @@
 #define ELLCKOP -28 // failed on lock operation
 #define ELIDXPC -29 // index operation panic
 #define ELIDXLK -30 // index is locked
+#define ELIDXNM -31 // key inserted violates monotonicity
 
 #endif

@@ -16,11 +16,35 @@ struct mbptree_node {
     struct mbptree_data  data[];
 };
 
+struct mbptree_lock {  // two phase locking
+    uint32_t exclusive_lock;
+    uint32_t shared_lock;
+};
+
+union cas_mbptree_lock {
+    struct mbptree_lock value;
+    uint64_t            cas_helper;
+};
+
 struct mbptree {
     int                  branch_factor;
-    volatile int         lock;
+    volatile union cas_mbptree_lock lock;
     struct mbptree_node* root;
     struct mbptree_node* last_leaf;
+};
+
+struct mbptree_leaf_iterator {
+    int                  branch_factor;
+    int                  idx;
+    const struct mbptree_node* leaf;
+};
+
+enum { QUEUE_SIZE = 1024 };
+
+struct mbptree_bfs_iterator {
+    int                  head;
+    int                  tail;
+    struct mbptree_node* queue[];
 };
 
 static void mbptree_print_node(const struct mbptree_node*);
@@ -69,10 +93,12 @@ static int mbptree_is_leaf(struct mbptree_node* node) {
 static int mbptree_free_node(struct mbptree_node* node) {
     // frees node and children
     if (!mbptree_is_leaf(node)) {
-        for (int i = 0; i < node->size; ++i) {
+        for (int i = 0; i <= node->size; ++i) {
             struct mbptree_node* child = node->data[i].value.addr;
-            if (mbptree_free_node(child) == -1) {
-                return -1;
+            if (child) {
+                if (mbptree_free_node(child) == -1) {
+                    return -1;
+                }
             }
         }
     }
@@ -91,8 +117,8 @@ static int mbptree_is_root(const struct mbptree_node* node) {
 }
 
 static uint64_t mbptree_move_half_node(const mbptree_t* tree,
-                                   struct mbptree_node* lhs,
-                                   struct mbptree_node* rhs) {
+                                       struct mbptree_node* lhs,
+                                       struct mbptree_node* rhs) {
     assert(lhs->parent == rhs->parent);
     assert(lhs->leaf == 0);
     assert(rhs->leaf == 0);
@@ -379,7 +405,9 @@ mbptree_t* mbptree_init(int branch_factor) {
         return NULL;
     }
 
-    tree->lock = 0;
+    const struct mbptree_lock lock = {.exclusive_lock = 0, .shared_lock = 0};
+
+    tree->lock.value = lock;
     tree->root = node;
     tree->last_leaf = node;
 
@@ -393,12 +421,23 @@ int mbptree_free(mbptree_t* tree) {
 }
 
 int mbptree_append(mbptree_t* tree, uint64_t key, mbptree_value_t value) {
-    if (!__sync_bool_compare_and_swap(&tree->lock, 0, 1)) {
-        return ELIDXLK;
+    const union cas_mbptree_lock old_val = {
+        .value = {.exclusive_lock = 0, .shared_lock = 0}
+    };
+    const union cas_mbptree_lock new_val = {
+        .value = {.exclusive_lock = 1, .shared_lock = 0}
+    };
+
+    if (!__sync_bool_compare_and_swap(
+        &tree->lock.cas_helper,
+        old_val.cas_helper,
+        new_val.cas_helper)) {
+         return ELIDXLK;
     }
 
-    int rc = mbptree_tryappend(tree, key, value);
-    tree->lock = 0;
+    const int rc = mbptree_tryappend(tree, key, value);
+
+    tree->lock = old_val;
 
     return rc;
 }
@@ -413,22 +452,41 @@ int mbptree_last_value(const mbptree_t* tree, mbptree_value_t* value) {
     return 0;
 }
 
-mbptree_leaf_iterator_t* mbptree_leaf_first(const mbptree_t* tree) {
-    return mbptree_leaf_floor(tree, 0);
+int mbptree_leaf_first(mbptree_t* tree, mbptree_leaf_iterator_t** iterator_ptr) {
+    return mbptree_leaf_floor(tree, 0, iterator_ptr);
 }
 
-mbptree_leaf_iterator_t* mbptree_leaf_floor(const mbptree_t* tree,
-                                            uint64_t key) {
+int mbptree_leaf_floor(mbptree_t* tree,
+                       uint64_t key,
+                       mbptree_leaf_iterator_t** iterator_ptr) {
+
     struct mbptree_leaf_iterator* iterator =
         (struct mbptree_leaf_iterator*)
             calloc(1, sizeof(struct mbptree_leaf_iterator));
     if (!iterator) {
-        return NULL;
+        return ELALLC;
     }
+
     iterator->branch_factor = tree->branch_factor;
     iterator->leaf = NULL;
 
+    // lock
+    const union cas_mbptree_lock old_val = tree->lock;
+    union cas_mbptree_lock expected_val = old_val;
+    expected_val.value.exclusive_lock = 0;
+    union cas_mbptree_lock new_val = old_val;
+    ++new_val.value.shared_lock;
+
+    if (!__sync_bool_compare_and_swap(
+        &tree->lock.cas_helper,
+        expected_val.cas_helper,
+        new_val.cas_helper)) {
+         return ELIDXLK;
+    }
+
     const struct mbptree_node* leaf = mbptree_find_leaf(tree->root, key);
+    --tree->lock.value.shared_lock;
+
     assert(leaf);
 
     int idx = -1;
@@ -445,7 +503,9 @@ mbptree_leaf_iterator_t* mbptree_leaf_floor(const mbptree_t* tree,
         iterator->leaf = leaf;
     }
 
-    return iterator;
+    *iterator_ptr = iterator;
+
+    return 0;
 }
 
 int mbptree_leaf_iterator_valid(const mbptree_leaf_iterator_t* iterator) {
@@ -546,7 +606,7 @@ int mbptree_bfs_iterator_leaf(const mbptree_bfs_iterator_t* iterator) {
 
 // LCOV_EXCL_START
 static void mbptree_print_node(const struct mbptree_node* node) {
-    printf("{ %"PRIu64" ", (uint64_t)node);
+    printf("{ %p ", (void*)node);
     if (node->leaf) {
         printf("L |");
     } else {
@@ -573,27 +633,17 @@ static void mbptree_print_node(const struct mbptree_node* node) {
         const struct mbptree_data* data = &node->data[j];
         printf(" _:%p |", data->value.addr);
     }
-    printf(" parent: %"PRIu64, (uint64_t)node->parent);
+    printf(" parent: %p", (void*)node->parent);
     printf(" }\n");
 }
 
 void mbptree_print(const mbptree_t* tree) {
-    enum { QUEUE_SIZE = 1024 };
-    int head = 0, tail = 0;
-    const struct mbptree_node* queue[QUEUE_SIZE];
-    queue[tail++] = tree->root;
-
-    int i = 0;
-    while (head < tail) {
-        const struct mbptree_node* node = queue[head++];
+    mbptree_bfs_iterator_t* iterator = mbptree_bfs_first(tree);
+    for (; mbptree_bfs_iterator_valid(iterator);
+           iterator = mbptree_bfs_iterator_next(iterator)) {
+        const struct mbptree_node* node = iterator->queue[iterator->head];
         mbptree_print_node(node);
-        ++i;
-
-        if (!node->leaf) {
-            for (int i = 0; i <= node->size; ++i) {
-                const struct mbptree_data* data = &node->data[i];
-                queue[tail++] = data->value.addr;
-            }
-        }
     }
+    free(iterator);
 }
+// LCOV_EXCL_STOP

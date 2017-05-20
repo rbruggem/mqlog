@@ -16,7 +16,7 @@ int     mqlog_close(mqlog_t*);
 
 /* thread safe functions */
 ssize_t mqlog_write(mqlog_t*, const void*, size_t);
-ssize_t mqlog_read(const mqlog_t*, uint64_t, struct frame*);
+ssize_t mqlog_read(mqlog_t*, uint64_t, struct frame*);
 ssize_t mqlog_sync(const mqlog_t*);
 
 #endif

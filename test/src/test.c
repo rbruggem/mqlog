@@ -1,5 +1,4 @@
 #include "testfw.h"
-#include <btree.h>
 #include <mbptree.h>
 #include <segment.h>
 #include <pthread.h>
@@ -25,646 +24,247 @@ static int delete_directory(const char* dir) {
     return nftw(dir, remove_callback, max_fds, FTW_DEPTH | FTW_PHYS);
 }
 
+static int mbptree_compare(const mbptree_t* tree, const uint64_t* arr, int w) {
+    mbptree_bfs_iterator_t* iterator = mbptree_bfs_first(tree);
+    for (int i = 0; mbptree_bfs_iterator_valid(iterator);
+           iterator = mbptree_bfs_iterator_next(iterator), ++i) {
 
-static int btree_compare(btree_t* tree, const int64_t* arr, int w) {
-    enum { QUEUE_SIZE = 1024 };
-    int head = 0, tail = 0;
-    const btree_node_t* queue[QUEUE_SIZE];
-    queue[tail++] = btree_root(tree);
-
-    int i = 0;
-    while (head < tail) {
-        const btree_node_t* node = queue[head++];
-
-        for (int j = 0; j < btree_node_length(node); ++j) {
-            if (*(arr + i * w) != btree_node_leaf(node)) {
+        for (int j = 0;; ++j) {
+            if ((int)*(arr + i * w) != mbptree_bfs_iterator_leaf(iterator)) {
                 return 0;
             }
-            const struct btree_node_data* data = btree_node_data(node, j);
-            if (*(arr + i * w + j + 1) != data->key) {
+            uint64_t key;
+            if (mbptree_bfs_iterator_key(iterator, j, &key) != 0) {
+                break;
+            }
+            if (*(arr + i * w + j + 1) != key) {
                 return 0;
             }
         }
-        ++i;
-
-        if (!btree_node_leaf(node)) {
-            for (int i = 0; i <= btree_node_length(node); ++i) {
-                const struct btree_node_data* data = btree_node_data(node, i);
-                queue[tail++] = data->value;
-            }
-        }
     }
-
+    free(iterator);
     return 1;
 }
 
-int btree_print(btree_t* tree) {
-    enum { QUEUE_SIZE = 1024 };
-    int head = 0, tail = 0;
-    const btree_node_t* queue[QUEUE_SIZE];
-    queue[tail++] = btree_root(tree);
-
-    int i = 0;
-    while (head < tail) {
-        const btree_node_t* node = queue[head++];
-
-        printf("{ %p ", (void*)node);
-        if (btree_node_leaf(node)) {
-            printf("L |");
-        } else {
-            printf("N |");
-        }
-
-        int j = 0;
-        for (j = 0; j < btree_node_length(node); ++j) {
-            if (j != 0) {
-                printf(",");
-            }
-            const struct btree_node_data* data = btree_node_data(node, j);
-            printf(" %"PRId64, data->key);
-        }
-        ++i;
-
-        if (btree_node_leaf(node)) {
-            const struct btree_node_data* data = btree_node_data(node, j);
-            printf(" | (%d) %p", j, (void*)data->value);
-        }
-
-        printf("}\n");
-
-        if (!btree_node_leaf(node)) {
-            for (int i = 0; i <= btree_node_length(node); ++i) {
-                const struct btree_node_data* data = btree_node_data(node, i);
-                queue[tail++] = data->value;
-            }
-        }
-    }
-
-    return 1;
-}
-
-TEST(btree_traversal) {
-    int v[] = {2, -213, 123, 534, -93, 34636, -34524};
-    btree_t* tree = btree_init(4);
-    ASSERT(btree_empty(tree) == 1);
-
-    btree_insert(tree, 1, &v[0]);
-    ASSERT(btree_empty(tree) == 0);
-
-    btree_insert(tree, 4, &v[5]);
-    btree_insert(tree, 16, &v[2]);
-    btree_insert(tree, 25, &v[4]);
-    btree_insert(tree, 9, &v[3]);
-    btree_insert(tree, 20, &v[2]);
-    btree_insert(tree, 13, &v[5]);
-    btree_insert(tree, 15, &v[1]);
-
-    const int64_t result[][4] =
-        {{0, 9, 16, 0},
-         {1, 1, 4, 0}, {1, 9, 13, 15}, {1, 16, 20, 25}};
-    ASSERT(btree_compare(tree, (const int64_t*)result, 4));
-
-    btree_iterator_t* iter = btree_iterator_find(tree, 1);
-    ASSERT(iter != NULL);
-    ASSERT(btree_iterator_valid(iter));
-
-    const struct btree_node_data* data = btree_iterator_data(iter);
-    ASSERT(data->key == 1);
-
-    int64_t sequence[] = {4, 9, 13, 15, 16, 20, 25, 0};
-
-    for (int i = 0; sequence[i] != 0; ++i) {
-        iter = btree_iterator_next(iter);
-        ASSERT(iter != NULL);
-        ASSERT(btree_iterator_valid(iter));
-        data = btree_iterator_data(iter);
-        ASSERT(data->key == sequence[i]);
-    }
-
-    free(iter);
-
-    int rc = btree_free(tree);
-    ASSERT(rc == 0);
-}
-
-TEST(btree_test4) {
-    int v[] = {2, -213, 123, 534, -93, 34636, -34524};
-    btree_t* tree = btree_init(4);
-    ASSERT(btree_empty(tree) == 1);
-
-    btree_insert(tree, 1, &v[0]);
-    ASSERT(btree_empty(tree) == 0);
-
-    btree_insert(tree, 4, &v[5]);
-    btree_insert(tree, 16, &v[2]);
-    btree_insert(tree, 25, &v[4]);
-    btree_insert(tree, 9, &v[3]);
-    btree_insert(tree, 20, &v[2]);
-    btree_insert(tree, 13, &v[5]);
-    btree_insert(tree, 15, &v[1]);
-    btree_insert(tree, 10, &v[3]);
-    btree_insert(tree, 11, &v[2]);
-
-    const struct btree_node_data* max = btree_max(tree);
-    ASSERT(max->key == 25);
-    ASSERT(*(int*)max->value == -93);
-
-    btree_insert(tree, 12, &v[4]);
-    btree_insert(tree, 1000, &v[2]);
-    btree_insert(tree, 2000, &v[4]);
-    max = btree_max(tree);
-    ASSERT(max->key == 2000);
-    ASSERT(*(int*)max->value == -93);
-
-    btree_insert(tree, 1500, &v[2]);
-    btree_insert(tree, 1700, &v[1]);
-    max = btree_max(tree);
-    ASSERT(max->key == 2000);
-    ASSERT(*(int*)max->value == -93);
-
-    btree_insert(tree, 1650, &v[0]);
-    max = btree_max(tree);
-    ASSERT(max->key == 2000);
-    ASSERT(*(int*)max->value == -93);
-
-    btree_insert(tree, 30, &v[3]);
-    max = btree_max(tree);
-    ASSERT(max->key == 2000);
-    ASSERT(*(int*)max->value == -93);
-
-    btree_insert(tree, 19, &v[6]);
-    btree_insert(tree, 17, &v[0]);
-    btree_insert(tree, 18, &v[3]);
-    btree_insert(tree, 24, &v[0]);
-    btree_insert(tree, 22, &v[3]);
-
-    max = btree_max(tree);
-    ASSERT(max->key == 2000);
-    ASSERT(*(int*)max->value == -93);
-
-    btree_insert(tree, 10000, &v[0]);
-    btree_insert(tree, 20000, &v[2]);
-
-    max = btree_max(tree);
-    ASSERT(max->key == 20000);
-    ASSERT(*(int*)max->value == 123);
-
-    btree_insert(tree, 30000, &v[1]);
-    btree_insert(tree, 25000, &v[5]);
-    btree_insert(tree, 22000, &v[0]);
-    btree_insert(tree, 21000, &v[4]);
-    btree_insert(tree, 20500, &v[4]);
-    btree_insert(tree, 20400, &v[2]);
-    btree_insert(tree, 8000, &v[0]);
-    btree_insert(tree, 1710, &v[4]);
-
-    max = btree_max(tree);
-    ASSERT(max->key == 30000);
-    ASSERT(*(int*)max->value == -213);
-
-    const int64_t result[][4] =
-        {{0, 1500, 0, 0},
-         {0, 13, 22, 0}, {0, 10000, 21000, 0},
-         {0, 9, 11, 0}, {0, 16, 19, 0}, {0, 25, 0, 0},
-            {0, 1700, 2000, 0}, {0, 20400, 0, 0}, {0, 25000, 0, 0},
-         {1, 1, 4, 0}, {1, 9, 10, 0}, {1, 11, 12, 0}, {1, 13, 15, 0},
-            {1, 16, 17, 18}, {1, 19, 20, 0}, {1, 22, 24, 0}, {1, 25, 30, 1000},
-            {1, 1500, 1650, 0}, {1, 1700, 1710, 0}, {1, 2000, 8000, 0},
-            {1, 10000, 20000, 0}, {1, 20400, 20500, 0}, {1, 21000, 22000, 0},
-            {1, 25000, 30000, 0}};
-    ASSERT(btree_compare(tree, (const int64_t*)result, 4));
-
-    int* v_ptr = btree_find(tree, 10000);
-    ASSERT(*v_ptr == 2);
-
-    v_ptr = btree_find(tree, 24);
-    ASSERT(*v_ptr == 2);
-
-    v_ptr = btree_find(tree, 1500);
-    ASSERT(*v_ptr == 123);
-
-    v_ptr = btree_find(tree, 9);
-    ASSERT(*v_ptr == 534)
-
-    v_ptr = btree_find(tree, 13);
-    ASSERT(*v_ptr == 34636);
-
-    v_ptr = btree_find(tree, 19);
-    ASSERT(*v_ptr == -34524);
-
-    int rc = btree_free(tree);
-    ASSERT(rc == 0);
-}
-
-TEST(btree_test3) {
-    btree_t* tree = btree_init(3);
-
-    int value = 2;
-    int rc = btree_insert(tree, 1, &value);
-    ASSERT(rc == 0);
-    int* value_ptr = btree_find(tree, 1);
-    ASSERT(*value_ptr == 2);
-
-    int value2 = 6;
-    rc = btree_insert(tree, 3, &value2);
-    ASSERT(rc == 0);
-    value_ptr = btree_find(tree, 3);
-    ASSERT(*value_ptr == 6);
-
-    int value3 = 623;
-    rc = btree_insert(tree, 6, &value3);
-    ASSERT(rc == 0);
-    value_ptr = btree_find(tree, 6);
-    ASSERT(*value_ptr == 623);
-
-    int value4 = 111;
-    rc = btree_insert(tree, -1, &value4);
-    ASSERT(rc == 0);
-    value_ptr = btree_find(tree, -1);
-    ASSERT(*value_ptr == 111);
-
-    int value5 = 111;
-    rc = btree_insert(tree, 0, &value5);
-    ASSERT(rc == 0);
-    value_ptr = btree_find(tree, 0);
-    ASSERT(*value_ptr == 111);
-
-    int value6 = -132;
-    rc = btree_insert(tree, 2, &value6);
-    ASSERT(rc == 0);
-    value_ptr = btree_find(tree, 2);
-    ASSERT(*value_ptr == -132);
-
-    int value7 = -7634;
-    rc = btree_insert(tree, 8, &value7);
-    ASSERT(rc == 0);
-    value_ptr = btree_find(tree, 8);
-    ASSERT(*value_ptr == -7634)
-
-    int value8 = 44;
-    rc = btree_insert(tree, 10, &value8);
-    ASSERT(rc == 0);
-    value_ptr = btree_find(tree, 10);
-    ASSERT(*value_ptr == 44);
-
-    int value9 = 2;
-    rc = btree_insert(tree, 4, &value9);
-    ASSERT(rc == 0);
-    value_ptr = btree_find(tree, 4);
-    ASSERT(*value_ptr == 2);
-
-    int value10 = 200;
-    rc = btree_insert(tree, 5, &value10);
-    ASSERT(rc == 0);
-    value_ptr = btree_find(tree, 5);
-    ASSERT(*value_ptr == 200);
-
-    int value11 = 10;
-    rc = btree_insert(tree, 6, &value11);
-    ASSERT(rc == 0);
-    value_ptr = btree_find(tree, 6);
-    ASSERT(*value_ptr == 10);
-
-    const int64_t result[][3] =
-        {{0, 1, 6},
-         {0, 0, 0}, {0, 3, 4}, {0, 8, 0},
-         {1, -1, 0}, {1, 0, 0}, {1, 1, 2}, {1, 3, 0},
-            {1, 4, 5}, {1, 6, 0}, {1, 8, 10}};
-    ASSERT(btree_compare(tree, (const int64_t*)result, 3));
-
-    // check all values again
-    value_ptr = btree_find(tree, 1);
-    ASSERT(*value_ptr == 2);
-
-    value_ptr = btree_find(tree, 3);
-    ASSERT(*value_ptr == 6);
-
-    value_ptr = btree_find(tree, -1);
-    ASSERT(*value_ptr == 111);
-
-    value_ptr = btree_find(tree, 0);
-    ASSERT(*value_ptr == 111);
-
-    value_ptr = btree_find(tree, 2);
-    ASSERT(*value_ptr == -132);
-
-    value_ptr = btree_find(tree, 8);
-    ASSERT(*value_ptr == -7634);
-
-    value_ptr = btree_find(tree, 10);
-    ASSERT(*value_ptr == 44);
-
-    value_ptr = btree_find(tree, 4);
-    ASSERT(*value_ptr == 2);
-
-    value_ptr = btree_find(tree, 5);
-    ASSERT(*value_ptr == 200);
-
-    value_ptr = btree_find(tree, 6);
-    ASSERT(*value_ptr == 10);
-
-    btree_iterator_t* iter = btree_iterator_find(tree, -1);
-    ASSERT(iter != NULL);
-    ASSERT(btree_iterator_valid(iter));
-
-    const struct btree_node_data* data = btree_iterator_data(iter);
-    ASSERT(data->key == -1);
-
-    int64_t sequence[] = {0, 1, 2, 3, 4, 5, 6, 8, 10, 0};
-
-    for (int i = 0; sequence[i] != 0; ++i) {
-        iter = btree_iterator_next(iter);
-        ASSERT(iter != NULL);
-        ASSERT(btree_iterator_valid(iter));
-        data = btree_iterator_data(iter);
-        ASSERT(data->key == sequence[i]);
-    }
-
-    free(iter);
-    rc = btree_free(tree);
-    ASSERT(rc == 0);
-}
-
-TEST(btree_test7) {
-    int v[] = {2, -213, 123, 534, -93, 34636, -34524};
-    btree_t* tree = btree_init(7);
-    btree_insert(tree, 10000, &v[4]);
-    btree_insert(tree, 9000, &v[4]);
-    btree_insert(tree, 9500, &v[4]);
-    btree_insert(tree, 11000, &v[4]);
-    btree_insert(tree, 9600, &v[4]);
-    btree_insert(tree, 12000, &v[4]);
-    btree_insert(tree, 9800, &v[4]);
-    btree_insert(tree, 4000, &v[4]);
-    btree_insert(tree, 9550, &v[4]);
-    btree_insert(tree, 9650, &v[4]);
-    btree_insert(tree, 4500, &v[4]);
-    btree_insert(tree, 9700, &v[4]);
-    btree_insert(tree, 9750, &v[4]);
-    btree_insert(tree, 9780, &v[4]);
-    btree_insert(tree, 3500, &v[4]);
-    btree_insert(tree, 4300, &v[4]);
-    btree_insert(tree, 4700, &v[4]);
-    btree_insert(tree, 3300, &v[4]);
-    btree_insert(tree, 5000, &v[4]);
-    btree_insert(tree, 5500, &v[4]);
-    btree_insert(tree, 5200, &v[4]);
-    btree_insert(tree, 5300, &v[4]);
-    btree_insert(tree, 5400, &v[4]);
-    btree_insert(tree, 6000, &v[4]);
-    btree_insert(tree, 6500, &v[4]);
-    btree_insert(tree, 6300, &v[4]);
-    btree_insert(tree, 6800, &v[4]);
-    btree_insert(tree, 7000, &v[4]);
-    btree_insert(tree, 6350, &v[4]);
-    btree_insert(tree, 6370, &v[4]);
-    btree_insert(tree, 9400, &v[4]);
-    btree_insert(tree, 9100, &v[4]);
-    btree_insert(tree, 8000, &v[4]);
-    btree_insert(tree, 8500, &v[4]);
-    btree_insert(tree, 8300, &v[4]);
-    btree_insert(tree, 8200, &v[4]);
-    btree_insert(tree, 13000, &v[4]);
-    btree_insert(tree, 14000, &v[4]);
-    btree_insert(tree, 15000, &v[4]);
-    btree_insert(tree, 6100, &v[4]);
-    btree_insert(tree, 6250, &v[4]);
-    btree_insert(tree, 6200, &v[4]);
-    btree_insert(tree, 5450, &v[4]);
-    btree_insert(tree, 3000, &v[4]);
-    btree_insert(tree, 3100, &v[4]);
-    btree_insert(tree, 3350, &v[4]);
-    btree_insert(tree, 3050, &v[4]);
-    btree_insert(tree, 3330, &v[4]);
-    btree_insert(tree, 3310, &v[4]);
-    btree_insert(tree, 3305, &v[4]);
-    btree_insert(tree, 3340, &v[4]);
-    btree_insert(tree, 3345, &v[4]);
-    btree_insert(tree, 3332, &v[4]);
-    btree_insert(tree, 2000, &v[4]);
-    btree_insert(tree, 2500, &v[4]);
-    btree_insert(tree, 2900, &v[4]);
-    btree_insert(tree, 2200, &v[4]);
-    btree_insert(tree, 2800, &v[4]);
-    btree_insert(tree, 2700, &v[4]);
-    btree_insert(tree, 2600, &v[4]);
-    btree_insert(tree, 2650, &v[4]);
-    btree_insert(tree, 2550, &v[4]);
-    btree_insert(tree, 2590, &v[4]);
-    btree_insert(tree, 2580, &v[4]);
-    btree_insert(tree, 2100, &v[4]);
-    btree_insert(tree, 2090, &v[4]);
-    btree_insert(tree, 2080, &v[4]);
-    btree_insert(tree, 2070, &v[4]);
-    btree_insert(tree, 3325, &v[4]);
-    btree_insert(tree, 3320, &v[4]);
-    btree_insert(tree, 3315, &v[4]);
-    btree_insert(tree, 3317, &v[4]);
-    btree_insert(tree, 2060, &v[4]);
-    btree_insert(tree, 2150, &v[4]);
-    btree_insert(tree, 2170, &v[4]);
-    btree_insert(tree, 2180, &v[4]);
-    btree_insert(tree, 2950, &v[4]);
-    btree_insert(tree, 2970, &v[4]);
-    btree_insert(tree, 2975, &v[4]);
-    btree_insert(tree, 2540, &v[4]);
-    btree_insert(tree, 2530, &v[4]);
-    btree_insert(tree, 2535, &v[4]);
-    btree_insert(tree, 2160, &v[4]);
-    btree_insert(tree, 2165, &v[4]);
-    btree_insert(tree, 2162, &v[4]);
-    btree_insert(tree, 1000, &v[4]);
-    btree_insert(tree, 1500, &v[4]);
-    btree_insert(tree, 1800, &v[4]);
-    btree_insert(tree, 1900, &v[4]);
-    btree_insert(tree, 1600, &v[4]);
-    btree_insert(tree, 1700, &v[4]);
-    btree_insert(tree, 1750, &v[4]);
-    btree_insert(tree, 1400, &v[4]);
-    btree_insert(tree, 1755, &v[4]);
-    btree_insert(tree, 1650, &v[4]);
-    btree_insert(tree, 1610, &v[4]);
-    btree_insert(tree, 1950, &v[4]);
-    btree_insert(tree, 1970, &v[4]);
-    btree_insert(tree, 1940, &v[4]);
-    btree_insert(tree, 1980, &v[4]);
-    btree_insert(tree, 2040, &v[4]);
-    btree_insert(tree, 2030, &v[4]);
-    btree_insert(tree, 1850, &v[4]);
-    btree_insert(tree, 1860, &v[4]);
-    btree_insert(tree, 1870, &v[4]);
-    btree_insert(tree, 1880, &v[4]);
-    btree_insert(tree, 1890, &v[4]);
-    btree_insert(tree, 1895, &v[4]);
-
-    const int64_t result[][7] =
-        {{0, 3300, 0, 0, 0, 0, 0},
-
-           {0, 1870, 2080, 2540, 0, 0, 0},
-           {0, 4300, 6300, 9500, 0, 0, 0},
-
-             {0, 1600, 1700, 1800, 0, 0, 0},
-             {0, 1900, 1970, 2030, 0, 0, 0},
-             {0, 2150, 2165, 2500, 0, 0, 0},
-
-             {0, 2600, 2900, 2975, 0, 0, 0},
-             {0, 3315, 3330, 3345, 0, 0, 0},
-             {0, 5000, 5400, 6000, 0, 0, 0},
-             {0, 6500, 8000, 8500, 0, 0, 0},
-             {0, 9650, 9800, 12000, 0, 0, 0},
-
-               {1, 1000, 1400, 1500, 0, 0, 0},
-               {1, 1600, 1610, 1650, 0, 0, 0},
-               {1, 1700, 1750, 1755, 0, 0, 0},
-               {1, 1800, 1850, 1860, 0, 0, 0},
-
-               {1, 1870, 1880, 1890, 1895, 0, 0},
-               {1, 1900, 1940, 1950, 0, 0, 0},
-               {1, 1970, 1980, 2000, 0, 0, 0},
-               {1, 2030, 2040, 2060, 2070, 0, 0},
-
-               {1, 2080, 2090, 2100, 0, 0, 0},
-               {1, 2150, 2160, 2162, 0, 0, 0},
-               {1, 2165, 2170, 2180, 2200, 0, 0},
-               {1, 2500, 2530, 2535, 0, 0, 0},
-
-               {1, 2540, 2550, 2580, 2590, 0 ,0},
-               {1, 2600, 2650, 2700, 2800, 0, 0},
-               {1, 2900, 2950, 2970, 0, 0, 0},
-               {1, 2975, 3000, 3050, 3100, 0, 0},
-
-               {1, 3300, 3305, 3310, 0, 0, 0},
-               {1, 3315, 3317, 3320, 3325, 0, 0},
-               {1, 3330, 3332, 3340, 0, 0, 0},
-               {1, 3345, 3350, 3500, 4000, 0, 0},
-
-               {1, 4300, 4500, 4700, 0, 0, 0},
-               {1, 5000, 5200, 5300, 0, 0, 0},
-               {1, 5400, 5450, 5500, 0, 0, 0},
-               {1, 6000, 6100, 6200, 6250, 0, 0},
-
-               {1, 6300, 6350, 6370, 0, 0, 0},
-               {1, 6500, 6800, 7000, 0, 0, 0},
-               {1, 8000, 8200, 8300, 0, 0, 0},
-               {1, 8500, 9000, 9100, 9400, 0, 0},
-
-               {1, 9500, 9550, 9600, 0, 0, 0},
-               {1, 9650, 9700, 9750, 9780, 0, 0},
-               {1, 9800, 10000, 11000, 0, 0, 0},
-               {1, 12000, 13000, 14000, 15000, 0, 0}
-        };
-    ASSERT(btree_compare(tree, (const int64_t*)result, 7));
-
-    btree_iterator_t* iter = btree_iterator_find(tree, 1980);
-    ASSERT(iter != NULL);
-    ASSERT(btree_iterator_valid(iter));
-
-    const struct btree_node_data* data = btree_iterator_data(iter);
-    ASSERT(data->key == 1980);
-
-    int64_t sequence[] = {2000, 2030, 2040, 2060, 2070, 2080, 2090, 0};
-
-    for (int i = 0; sequence[i] != 0; ++i) {
-        iter = btree_iterator_next(iter);
-        ASSERT(iter != NULL);
-        ASSERT(btree_iterator_valid(iter));
-        data = btree_iterator_data(iter);
-        ASSERT(data->key == sequence[i]);
-    }
-
-    free(iter);
-
-    int* v_ptr = btree_find(tree, 9700);
-    ASSERT(*v_ptr == -93);
-
-    // update
-    btree_insert(tree, 9700, &v[0]);
-    v_ptr = btree_find(tree, 9700);
-    ASSERT(*v_ptr == 2);
-
-    int rc = btree_free(tree);
-    ASSERT(rc == 0);
-}
-
-TEST(btree_test6) {
-    int value = 10;
-    const int branch_factor = 6;
-    btree_t* tree = btree_init(branch_factor);
-    btree_insert(tree, 10000, &value);
-    btree_insert(tree, 20000, &value);
-    btree_insert(tree, 1000, &value);
-    btree_insert(tree, 15000, &value);
-    btree_insert(tree, 5000, &value);
-    btree_insert(tree, 2000, &value);
-    btree_insert(tree, 4000, &value);
-    btree_insert(tree, 4500, &value);
-    btree_insert(tree, 3500, &value);
-    btree_insert(tree, 3000, &value);
-    btree_insert(tree, 1500, &value);
-    btree_insert(tree, 1300, &value);
-    btree_insert(tree, 1400, &value);
-    btree_insert(tree, 1200, &value);
-    btree_insert(tree, 1250, &value);
-    btree_insert(tree, 1240, &value);
-    btree_insert(tree, 1245, &value);
-    btree_insert(tree, 1100, &value);
-    btree_insert(tree, 1150, &value);
-    btree_insert(tree, 1130, &value);
-    btree_insert(tree, 4700, &value);
-    btree_insert(tree, 4800, &value);
-    btree_insert(tree, 8000, &value);
-
-    const int64_t result[][6] =
-        {{0, 4000, 0, 0, 0, 0},
-           {0, 1240, 1300, 2000, 0, 0},
-           {0, 4800, 10000, 0, 0, 0},
-             {1, 1000, 1100, 1130, 1150, 1200},
-             {1, 1240, 1245, 1250, 0, 0},
-             {1, 1300, 1400, 1500, 0, 0},
-             {1, 2000, 3000, 3500, 0, 0},
-             {1, 4000, 4500, 4700, 0, 0},
-             {1, 4800, 5000, 8000, 0, 0},
-             {1, 10000, 15000, 20000, 0, 0}
-        };
-    ASSERT(btree_compare(tree, (const int64_t*)result, branch_factor));
-
-    btree_iterator_t* iter = btree_iterator_find(tree, 1100);
-    ASSERT(iter != NULL);
-    ASSERT(btree_iterator_valid(iter));
-
-    const struct btree_node_data* data = btree_iterator_data(iter);
-    ASSERT(data->key == 1100);
-
-    int64_t sequence[] = {1130, 1150, 1200, 1240, 1245,
-                          1250, 1300, 1400, 1500, 2000, 0};
-
-    for (int i = 0; sequence[i] != 0; ++i) {
-        iter = btree_iterator_next(iter);
-        ASSERT(iter != NULL);
-        ASSERT(btree_iterator_valid(iter));
-        data = btree_iterator_data(iter);
-        ASSERT(data->key == sequence[i]);
-    }
-
-    free(iter);
-
-    int rc = btree_free(tree);
-    ASSERT(rc == 0);
-}
-
-TEST(mbptree_test) {
-    mbptree_t* tree = mbptree_init(3);
+TEST(mbptree_test1) {
+    const int branch_factor = 3;
+    mbptree_t* tree = mbptree_init(branch_factor);
     ASSERT(tree != 0);
 
-    uint64_t arr[] = {1, 2, 5, 6, 10, 12, 15, 20, 22, 0};
+    const uint64_t result[][3] =
+        {{0, 10, 0},
+           {0, 5, 0},
+           {0, 15, 0},
+             {0, 2, 0},
+             {0, 6, 0},
+             {0, 12, 0},
+             {0, 20, 0},
+               {1, 1, 0},
+               {1, 2, 0},
+               {1, 5, 0},
+               {1, 6, 0},
+               {1, 10, 0},
+               {1, 12, 0},
+               {1, 15, 0},
+               {1, 20, 22}};
+
+    const uint64_t arr[] = {1, 2, 5, 6, 10, 12, 15, 20, 22, 0};
     for (int i = 0; arr[i] != 0; ++i) {
         int rc = mbptree_append(tree, arr[i], u64(arr[i]));
         ASSERT(rc == 0);
-
-        printf("\n----- Add %"PRId64"\n", arr[i]);
-        mbptree_print(tree);
     }
 
+    ASSERT(mbptree_compare(tree, (const uint64_t*)result, branch_factor));
+
+    mbptree_leaf_iterator_t* iterator = mbptree_leaf_floor(tree, 16);
+    ASSERT(iterator);
+    ASSERT(mbptree_leaf_iterator_valid(iterator) == 1);
+    ASSERT(mbptree_leaf_iterator_key(iterator) == 15);
+    free(iterator);
+
+    const uint64_t arr2[] = {25, 27, 30, 33, 34, 35, 36, 37, 49, 55, 100, 0};
+    for (int i = 0; arr2[i] != 0; ++i) {
+        int rc = mbptree_append(tree, arr2[i], u64(arr2[i]));
+        ASSERT(rc == 0);
+    }
+
+    const uint64_t result2[][3] =
+        {{0, 22, 0},
+           {0, 10, 0},
+           {0, 33, 0},
+             {0, 5, 0},
+             {0, 15, 0},
+             {0, 27, 0},
+             {0, 35, 37},
+               {0, 2, 0},
+               {0, 6, 0},
+               {0, 12, 0},
+               {0, 20, 0},
+               {0, 25, 0},
+               {0, 30, 0},
+               {0, 34, 0},
+               {0, 36, 0},
+               {0, 49, 55},
+                 {1, 1, 0},
+                 {1, 2, 0},
+                 {1, 5, 0},
+                 {1, 6, 0},
+                 {1, 10, 0},
+                 {1, 12, 0},
+                 {1, 15, 0},
+                 {1, 20, 0},
+                 {1, 22, 0},
+                 {1, 25, 0},
+                 {1, 27, 0},
+                 {1, 30, 0},
+                 {1, 33, 0},
+                 {1, 34, 0},
+                 {1, 35, 0},
+                 {1, 36, 0},
+                 {1, 37, 0},
+                 {1, 49, 0},
+                 {1, 55, 100}};
+
+    ASSERT(mbptree_compare(tree, (const uint64_t*)result2,  branch_factor));
+
+    int rc = mbptree_append(tree, 8, u64(8));
+    ASSERT(rc == ELIDXNM);
+
+    mbptree_free(tree);
+}
+
+TEST(mbptree_test2) {
+    const int branch_factor = 6;
+    mbptree_t* tree = mbptree_init(branch_factor);
+    ASSERT(tree != 0);
+
+    const uint64_t result[][6] =
+        {{0, 34, 81, 136, 180, 245},
+           {0, 6, 15, 25, 0, 0},
+           {0, 55, 67, 77, 0, 0},
+           {0, 85, 100, 126, 0, 0},
+           {0, 140, 167, 177, 0, 0},
+           {0, 190, 196, 211, 0, 0},
+           {0, 260, 264, 0, 0, 0},
+             {1, 1, 2, 5, 0, 0},
+             {1, 6, 10, 12, 0, 0},
+             {1, 15, 20, 22, 0, 0},
+             {1, 25, 27, 29, 0, 0},
+             {1, 34, 45, 47, 0, 0},
+             {1, 55, 58, 62, 0, 0},
+             {1, 67, 69, 74, 0, 0},
+             {1, 77, 79, 80, 0, 0},
+             {1, 81, 82, 83, 0, 0},
+             {1, 85, 88, 89, 0, 0},
+             {1, 100, 111, 116, 0, 0},
+             {1, 126, 129, 130, 0, 0},
+             {1, 136, 138, 139, 0, 0},
+             {1, 140, 144, 145, 0, 0},
+             {1, 167, 170, 176, 0, 0},
+             {1, 177, 178, 179, 0, 0},
+             {1, 180, 182, 189, 0, 0},
+             {1, 190, 191, 194, 0, 0},
+             {1, 196, 197, 210, 0, 0},
+             {1, 211, 223, 243, 0, 0},
+             {1, 245, 250, 251, 0, 0},
+             {1, 260, 261, 263, 0, 0},
+             {1, 264, 265, 266, 278, 0}};
+
+    const uint64_t arr[] = {
+        1, 2, 5, 6, 10, 12, 15, 20, 22,
+        25, 27, 29, 34, 45, 47, 55, 58, 62,
+        67, 69, 74, 77, 79, 80, 81, 82, 83,
+        85, 88, 89, 100, 111, 116, 126, 129,
+        130, 136, 138, 139, 140, 144, 145,
+        167, 170, 176, 177, 178, 179, 180,
+        182, 189, 190, 191, 194, 196, 197,
+        210, 211, 223, 243, 245, 250, 251,
+        260, 261, 263, 264, 265, 266, 278,
+        0};
+
+    for (int i = 0; arr[i] != 0; ++i) {
+        int rc = mbptree_append(tree, arr[i], u64(arr[i]));
+        ASSERT(rc == 0);
+    }
+
+    ASSERT(mbptree_compare(tree, (const uint64_t*)result, branch_factor));
+    mbptree_free(tree);
+}
+
+TEST(mbptree_test3) {
+    const int branch_factor = 5;
+    mbptree_t* tree = mbptree_init(branch_factor);
+    ASSERT(tree != 0);
+
+    const uint64_t result[][5] =
+        {{0, 67, 136, 0, 0},
+          {0, 15, 34, 0, 0},
+          {0, 81, 100, 0, 0},
+          {0, 167, 180, 196, 245},
+            {0, 5, 10, 0, 0},
+            {0, 22, 27, 0, 0},
+            {0, 47, 58, 0, 0},
+            {0, 74, 79, 0, 0},
+            {0, 83, 88, 0, 0},
+            {0, 116, 129, 0, 0},
+            {0, 139, 144, 0, 0},
+            {0, 176, 178, 0, 0},
+            {0, 189, 191, 0, 0},
+            {0, 210, 223, 0, 0},
+            {0, 251, 261, 264, 0},
+              {1, 1, 2, 0, 0},
+              {1, 5, 6, 0, 0},
+              {1, 10, 12, 0, 0},
+              {1, 15, 20, 0, 0},
+              {1, 22, 25, 0, 0},
+              {1, 27, 29, 0, 0},
+              {1, 34, 45, 0, 0},
+              {1, 47, 55, 0, 0},
+              {1, 58, 62, 0, 0},
+              {1, 67, 69, 0, 0},
+              {1, 74, 77, 0, 0},
+              {1, 79, 80, 0, 0},
+              {1, 81, 82, 0, 0},
+              {1, 83, 85, 0, 0},
+              {1, 88, 89, 0, 0},
+              {1, 100, 111, 0, 0},
+              {1, 116, 126, 0, 0},
+              {1, 129, 130, 0, 0},
+              {1, 136, 138, 0, 0},
+              {1, 139, 140, 0, 0},
+              {1, 144, 145, 0, 0},
+              {1, 167, 170, 0, 0},
+              {1, 176, 177, 0, 0},
+              {1, 178, 179, 0, 0},
+              {1, 180, 182, 0, 0},
+              {1, 189, 190, 0, 0},
+              {1, 191, 194, 0, 0},
+              {1, 196, 197, 0, 0},
+              {1, 210, 211, 0, 0},
+              {1, 223, 243, 0, 0},
+              {1, 245, 250, 0, 0},
+              {1, 251, 260, 0, 0},
+              {1, 261, 263, 0, 0},
+              {1, 264, 265, 266, 278}};
+
+    const uint64_t arr[] = {
+        1, 2, 5, 6, 10, 12, 15, 20, 22,
+        25, 27, 29, 34, 45, 47, 55, 58, 62,
+        67, 69, 74, 77, 79, 80, 81, 82, 83,
+        85, 88, 89, 100, 111, 116, 126, 129,
+        130, 136, 138, 139, 140, 144, 145,
+        167, 170, 176, 177, 178, 179, 180,
+        182, 189, 190, 191, 194, 196, 197,
+        210, 211, 223, 243, 245, 250, 251,
+        260, 261, 263, 264, 265, 266, 278,
+        0};
+
+    for (int i = 0; arr[i] != 0; ++i) {
+        int rc = mbptree_append(tree, arr[i], u64(arr[i]));
+        ASSERT(rc == 0);
+    }
+
+    ASSERT(mbptree_compare(tree, (const uint64_t*)result, branch_factor));
     mbptree_free(tree);
 }
 

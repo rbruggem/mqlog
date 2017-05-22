@@ -8,3 +8,4 @@ test/src/test
 *.gcov
 cov.info
 lcov-html
+tags

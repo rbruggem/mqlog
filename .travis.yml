@@ -10,9 +10,37 @@ matrix:
             - ubuntu-toolchain-r-test
           packages:
             - gcc-4.6
-            - valgrind
             - lcov
-      env: COMPILER=gcc-4.6 COVERALL_OPTS='--gcov gcov-4.6'
+      env: COMPILER=gcc-4.6 COVERALL_OPTS='--gcov gcov-4.6' TARGET=test
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-4.9
+            - lcov
+      env: COMPILER=gcc-4.9 COVERALL_OPTS='--gcov gcov-4.9' TARGET=test
+    - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-5
+            - lcov
+      env: COMPILER=gcc-5 COVERALL_OPTS='--gcov gcov-5' TARGET=test
+    - os: linux
+      compiler: clang
+      env: COMPILER=clang COVERALL_OPTS='' TARGET=test
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - lcov
     - os: linux
       compiler: gcc
       addons:
@@ -23,30 +51,21 @@ matrix:
             - gcc-4.9
             - valgrind
             - lcov
-      env: COMPILER=gcc-4.9 COVERALL_OPTS='--gcov gcov-4.9'
-    - os: linux
-      compiler: gcc
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - gcc-5
-            - valgrind
-            - lcov
-      env: COMPILER=gcc-5 COVERALL_OPTS='--gcov gcov-5'
+      env: COMPILER=gcc-4.9 COVERALL_OPTS='--gcov gcov-4.9' TARGET=test-valgrind
     - os: linux
       compiler: clang
-      env: COMPILER=clang COVERALL_OPTS=''
+      env: COMPILER=clang COVERALL_OPTS='' TARGET=test-valgrind
       addons:
         apt:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - valgrind
             - lcov
+            - valgrind
 
-script: CC=$COMPILER make gcov && CC=$COMPILER make test
+
+
+script: CC=$COMPILER make gcov && CC=$COMPILER make $TARGET
 after_success:
     - coveralls $COVERALL_OPTS --exclude test
 before_install:

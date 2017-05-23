@@ -62,7 +62,7 @@ valgrind: build
             --num-callers=20 \
             --track-fds=yes \
             --track-origins=yes \
-            $(program)
+            $(program) -e big_test
 
 # Dependencies
 ifneq ($(MAKECMDGOALS),clean)

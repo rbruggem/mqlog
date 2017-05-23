@@ -46,7 +46,7 @@ matrix:
             - valgrind
             - lcov
 
-script: CC=$COMPILER make gcov && CC=$COMPILER make test-valgrind
+script: CC=$COMPILER make gcov && CC=$COMPILER make test
 after_success:
     - coveralls $COVERALL_OPTS --exclude test
 before_install:

@@ -1,4 +1,5 @@
 SRC=src
+PREFIX?=/usr/local
 
 CFLAGS+=-O3 -g
 LIBS+=
@@ -31,6 +32,7 @@ vpath %.h $(include_dirs)
 MV := mv -f
 RM := rm -rf
 SED := sed
+CP := cp -pf
 
 .PHONY: all
 all: build
@@ -66,6 +68,16 @@ gcov:
 lcov:
 	@geninfo --no-checksum -o cov.info src
 	@genhtml --legend -o lcov-html cov.info
+
+.PHONY: install
+install: all
+	@mkdir -p $(PREFIX)/include
+	@mkdir -p $(PREFIX)/lib
+	$(CP) src/mqlog.h $(PREFIX)/include/
+	$(CP) src/mqlogerrno.h $(PREFIX)/include/
+	$(CP) src/prot.h $(PREFIX)/include/
+	$(CP) src/libmqlog.so $(PREFIX)/lib/
+	$(CP) src/libmqlog.a $(PREFIX)/lib/
 
 # Dependencies
 ifneq ($(MAKECMDGOALS),clean)

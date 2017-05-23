@@ -1,8 +1,11 @@
 #include "testfw.h"
+#include "test_util.h"
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <time.h>
+
+enum {ALL, INCLUDE, EXCLUDE};
 
 struct node {
     void         (*test_fn)(int*);
@@ -36,15 +39,17 @@ void testfw_free() {
     }
 }
 
-int testfw_run(const char* test_name) {
+int testfw_run(int mode, const char** test_names, int len) {
     int total_errors = 0;
     for (struct node* elem = head; elem != 0; elem = elem->next) {
         int errors = 0;
 
-        // run test if test_name is NULL or test_name is the name of the test
-        if ((test_name &&
-            strncmp(elem->test_name, test_name, strlen(elem->test_name)) == 0) ||
-            test_name == NULL) {
+        if (
+            mode == ALL ||
+            (mode == INCLUDE &&
+                str_in_array(test_names, len, elem->test_name)) ||
+            (mode == EXCLUDE && !str_in_array(test_names, len, elem->test_name))
+        ) {
 
             struct timespec tstart={0,0}, tend={0,0};
             clock_gettime(CLOCK_MONOTONIC, &tstart);
@@ -70,12 +75,48 @@ int testfw_run(const char* test_name) {
 int main(int argc, char* argv[]) {
     srand((unsigned)time(0));
 
-    char* test_name = NULL;
-    if (argc == 2) {
-        test_name = argv[1];
+    char** test_names = NULL;
+    char* value = NULL;
+    char c;
+    int mode = ALL;
+    while ((c = getopt (argc, argv, "i:e:")) != -1) {
+        switch (c) {
+            case 'i':
+                value = optarg;
+                mode = INCLUDE;
+                break;
+            case 'e':
+                // only one between 'e' and 'i' applies
+                value = optarg;
+                mode = EXCLUDE;
+                break;
+            case '?':
+                if (optopt == 'i' || optopt == 'e') {
+                    fprintf(stderr,
+                            "Option -%c requires an argument.\n",
+                            optopt);
+                } else {
+                    fprintf(stderr,
+                            "Unknown option character `\\x%x'.\n",
+                            optopt);
+                }
+                return 1;
+        }
     }
 
-    const int errors = testfw_run(test_name);
+    int len = 0;
+    if (value) {
+        test_names = strsplit(&len, value, ",");
+    }
+
+    const int errors = testfw_run(mode, (const char**)test_names, len);
+
+    if (test_names) {
+        for (int i = 0; i < len; ++i) {
+            free(test_names[i]);
+        }
+        free(test_names);
+    }
 
     testfw_free();
 

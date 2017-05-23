@@ -11,6 +11,11 @@ static int remove_callback(const char* file,
 }
 
 int delete_directory(const char* dir) {
+    struct stat st;
     const int max_fds = 64;
-    return nftw(dir, remove_callback, max_fds, FTW_DEPTH | FTW_PHYS);
+    int i = stat(dir, &st);
+    if (i == 0) {
+        return nftw(dir, remove_callback, max_fds, FTW_DEPTH | FTW_PHYS);
+    }
+    return 0;
 }

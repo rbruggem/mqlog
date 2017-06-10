@@ -1,9 +1,9 @@
 SRC=src
 PREFIX?=/usr/local
 
-CFLAGS+=-O3 -g
+CFLAGS+=-O3 -g -pthread
 LIBS+=
-LDFLAGS+=
+LDFLAGS+=-pthread
 
 libraries := src/libmqlog.so src/libmqlog.a
 

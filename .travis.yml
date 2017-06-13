@@ -76,7 +76,7 @@ matrix:
 
 script: CC=$COMPILER make gcov && CC=$COMPILER make $TARGET
 after_success:
-    - coveralls $COVERALL_OPTS --exclude test
+    - test $TARGET = "test" && coveralls $COVERALL_OPTS -i src
 before_install:
     - pip install --user urllib3[secure]
     - pip install --user cpp-coveralls

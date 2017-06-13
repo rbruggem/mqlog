@@ -4,6 +4,15 @@
 #include <sched.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <ftw.h>
+
+static int remove_callback(const char* file,
+                           const struct stat* UNUSED(stat),
+                           int UNUSED(typeflag),
+                           struct FTW* UNUSED(ftwbuf)) {
+    return remove(file);
+}
+
 
 size_t pagesize() {
     return sysconf(_SC_PAGESIZE);
@@ -35,6 +44,16 @@ size_t page_aligned_addr(size_t addr) {
 int ensure_directory(const char* dir) {
     if (file_exists(dir) == 0) {
         return mkdir(dir, 0700);
+    }
+    return 0;
+}
+
+int delete_directory(const char* dir) {
+    struct stat st;
+    const int max_fds = 64;
+    int i = stat(dir, &st);
+    if (i == 0) {
+        return nftw(dir, remove_callback, max_fds, FTW_DEPTH | FTW_PHYS);
     }
     return 0;
 }

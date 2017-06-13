@@ -9,3 +9,4 @@ test/src/test
 cov.info
 lcov-html
 tags
+bench/src/bench

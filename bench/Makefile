@@ -1,13 +1,14 @@
 SRC=src
 
+OPTIONS?=-b producer_bench
 MQLOGLIBPATH:=../src
 
 CFLAGS+=-O0 -g -I$(MQLOGLIBPATH) -pthread
-CFLAGS+=-D_XOPEN_SOURCE=500  # needed for `strdup` and `strtok_r`
-LIBS+=-lmqlog -pthread -lrt
+CFLAGS+=-D_XOPEN_SOURCE=500  # needed for `ftw`
+LIBS+=-lmqlog -lrt
 LDFLAGS+=-L$(MQLOGLIBPATH)
 
-program := src/test
+program := src/bench
 
 CFLAGS+=-Wall -Wextra -Werror -Winit-self -std=c99 -pedantic -fPIC
 CFLAGS+=-Wformat -Werror=format-security
@@ -45,24 +46,14 @@ $(program): $(objects)
 
 .PHONY: clean
 clean:
-	$(RM) $(objects) $(dependencies) $(program) $(SRC)/*.gcda $(SRC)/*.gcno
+	$(RM) $(objects) $(dependencies) $(program)
+
+.PHONY: bench
+bench: run
 
 .PHONY: run
 run: build
-	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(MQLOGLIBPATH) ./$(program)
-
-.PHONY: valgrind
-valgrind: build
-	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):${MQLOGLIBPATH} \
-    valgrind \
-            --tool=memcheck \
-            --read-var-info=yes \
-            --leak-check=yes \
-            --show-reachable=yes \
-            --num-callers=20 \
-            --track-fds=yes \
-            --track-origins=yes \
-            $(program) -e big_test
+	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(MQLOGLIBPATH) ./$(program) $(OPTIONS)
 
 # Dependencies
 ifneq ($(MAKECMDGOALS),clean)

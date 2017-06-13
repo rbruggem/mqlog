@@ -13,6 +13,7 @@ int          file_exists(const char*);
 ssize_t      file_size(const char*);
 size_t       page_aligned_addr(size_t);
 int          ensure_directory(const char*);
+int          delete_directory(const char*);
 int          append_file_to_dir(char*, size_t, const char*, const char*);
 int          has_suffix(const char*, const char*);
 

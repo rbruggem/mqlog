@@ -2,6 +2,7 @@ SRC=src
 PREFIX?=/usr/local
 
 CFLAGS+=-O3 -g -pthread
+CFLAGS+=-D_XOPEN_SOURCE=500  # needed for `ftw`
 LIBS+=
 LDFLAGS+=-pthread
 
@@ -51,10 +52,15 @@ clean:
 	$(RM) $(objects) $(dependencies) $(libraries) $(SRC)/*.gcda \
           $(SRC)/*.gcno $(SRC)/*.gcov lcov-html cov.info
 	@$(MAKE) CC=$(CC) -C test clean
+	@$(MAKE) CC=$(CC) -C bench clean
 
 .PHONY: test
 test: build
 	@$(MAKE) CC=$(CC) -C test run
+
+.PHONY: bench
+bench: build
+	@$(MAKE) CC=$(CC) -C bench run
 
 .PHONY: test-valgrind
 test-valgrind:

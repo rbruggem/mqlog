@@ -1,5 +1,6 @@
 #include "testfw.h"
 #include "test_util.h"
+#include <util.h>
 #include <segment.h>
 #include <mqlogerrno.h>
 #include <string.h>

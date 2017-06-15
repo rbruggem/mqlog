@@ -10,7 +10,8 @@ libraries := src/libmqlog.so src/libmqlog.a
 
 CFLAGS+=-Wall -Wextra -Werror -Winit-self -std=c99 -pedantic -fPIC
 CFLAGS+=-Wformat -Werror=format-security
-CFLAGS+=-D_BSD_SOURCE # needed for `madvise` and `ftruncate`
+CFLAGS+=-D_BSD_SOURCE -D_DEFAULT_SOURCE # needed for `madvise` and `ftruncate`
+
 
 ifeq ($(shell expr `$(CC) -v 2> /dev/stdout  | grep -i gcc | tail -n 1 | sed -e 's/.*\(gcc\).*/\1/I'`),gcc)
 GCC_GTEQ_490 := $(shell expr `$(CC) -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g' -e 's/\.\([0-9]\)/0\1/g' -e 's/^[0-9]\{3,4\}$$/&00/'` \>= 40900)

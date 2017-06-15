@@ -33,6 +33,16 @@ matrix:
             - lcov
       env: COMPILER=gcc-5 COVERALL_OPTS='--gcov gcov-5' TARGET=test
     - os: linux
+      compiler: gcc
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-6
+            - lcov
+      env: COMPILER=gcc-6 COVERALL_OPTS='--gcov gcov-6' TARGET=test
+    - os: linux
       compiler: clang
       env: COMPILER=clang COVERALL_OPTS='' TARGET=test
       addons:

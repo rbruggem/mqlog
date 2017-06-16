@@ -1,6 +1,7 @@
 SRC=src
 
 OPTIONS?=-b producer_bench
+PERF_OPTIONS?=-e task-clock,page-faults,cpu-migrations,context-switches,cycles,instructions,branches,branch-misses,alignment-faults,cache-misses,L1-dcache-loads,L1-dcache-load-misses
 MQLOGLIBPATH:=../src
 
 CFLAGS+=-O0 -g -I$(MQLOGLIBPATH) -pthread
@@ -54,6 +55,10 @@ bench: run
 .PHONY: run
 run: build
 	LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$(MQLOGLIBPATH) ./$(program) $(OPTIONS)
+
+.PHONY: perf
+perf: build
+	perf stat $(PERF_OPTIONS) ./$(program) $(OPTIONS)
 
 # Dependencies
 ifneq ($(MAKECMDGOALS),clean)

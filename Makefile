@@ -59,10 +59,6 @@ clean:
 test: build
 	@$(MAKE) CC=$(CC) -C test run
 
-.PHONY: bench
-bench: build
-	@$(MAKE) CC=$(CC) -C bench run
-
 .PHONY: test-valgrind
 test-valgrind:
 	@$(MAKE) CC=$(CC) -C test valgrind
@@ -75,6 +71,15 @@ gcov:
 lcov:
 	@geninfo --no-checksum -o cov.info src
 	@genhtml --legend -o lcov-html cov.info
+
+.PHONY: bench
+bench: build
+	@$(MAKE) CC=$(CC) -C bench run
+
+.PHONY: perf
+perf: build
+	@$(MAKE) CC=$(CC) -C bench perf
+
 
 .PHONY: install
 install: all

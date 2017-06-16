@@ -16,6 +16,7 @@ int          ensure_directory(const char*);
 int          delete_directory(const char*);
 int          append_file_to_dir(char*, size_t, const char*, const char*);
 int          has_suffix(const char*, const char*);
+int          file_limit();
 
 #ifdef MQLOG_DEBUG
 #include <stdio.h>

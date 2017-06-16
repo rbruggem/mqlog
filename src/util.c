@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <ftw.h>
+#include <sys/resource.h>
 
 static int remove_callback(const char* file,
                            const struct stat* UNUSED(stat),
@@ -86,4 +87,12 @@ int has_suffix(const char* str, const char* suffix) {
     }
 
     return strncmp(str + lenstr - lensuffix, suffix, lensuffix) == 0;
+}
+
+int file_limit() {
+    struct rlimit rlim;
+    if (getrlimit(RLIMIT_NOFILE, &rlim) != 0) {
+        return -1;
+    }
+    return rlim.rlim_cur;
 }

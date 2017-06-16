@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <util.h>
 
 int producer_bench(size_t, size_t, size_t);
 
@@ -16,6 +17,11 @@ void err(const char* fmt, ...) {
 
 int main(int argc, char* argv[]) {
     srand((unsigned)time(0));
+
+    int lim = file_limit();
+    if (lim < 4096) {
+        fprintf(stderr, "Recommended file ulimit >= 4096, current %d\n", lim);
+    }
 
     size_t segment_size = 524288000;  // default to 512MB
     size_t num = 50000000;  // default to 50M

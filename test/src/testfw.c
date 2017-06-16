@@ -4,6 +4,7 @@
 #include <string.h>
 #include <strings.h>
 #include <time.h>
+#include <util.h>
 
 enum {ALL, INCLUDE, EXCLUDE};
 
@@ -74,6 +75,11 @@ int testfw_run(int mode, const char** test_names, int len) {
 
 int main(int argc, char* argv[]) {
     srand((unsigned)time(0));
+
+    int lim = file_limit();
+    if (lim < 4096) {
+        fprintf(stderr, "Recommended file ulimit >= 4096, current %d\n", lim);
+    }
 
     char** test_names = NULL;
     char* value = NULL;

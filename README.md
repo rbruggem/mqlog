@@ -12,6 +12,10 @@ To run tests:
 
 `make test`
 
+To run benchmarks:
+
+`make bench`
+
 To generate test code coverage (requires `lcov` package)
 
 ```

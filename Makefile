@@ -60,7 +60,7 @@ test: build
 	@$(MAKE) CC=$(CC) -C test run
 
 .PHONY: test-valgrind
-test-valgrind:
+test-valgrind: build
 	@$(MAKE) CC=$(CC) -C test valgrind
 
 .PHONY: gcov

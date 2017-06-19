@@ -58,10 +58,10 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - gcc-4.9
+            - gcc-6
             - valgrind
             - lcov
-      env: COMPILER=gcc-4.9 COVERALL_OPTS='--gcov gcov-4.9' TARGET=test-valgrind
+      env: COMPILER=gcc-6 COVERALL_OPTS='--gcov gcov-6' TARGET=test-valgrind
     - os: linux
       compiler: clang
       env: COMPILER=clang COVERALL_OPTS='' TARGET=test-valgrind
@@ -79,8 +79,8 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - gcc-4.9
-      env: COMPILER=gcc-4.9 TARGET=bench
+            - gcc-6
+      env: COMPILER=gcc-6 TARGET=bench
 
 
 

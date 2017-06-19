@@ -80,7 +80,6 @@ bench: build
 perf: build
 	@$(MAKE) CC=$(CC) -C bench perf
 
-
 .PHONY: install
 install: all
 	@mkdir -p $(PREFIX)/include
@@ -90,6 +89,14 @@ install: all
 	$(CP) src/prot.h $(PREFIX)/include/
 	$(CP) src/libmqlog.so $(PREFIX)/lib/
 	$(CP) src/libmqlog.a $(PREFIX)/lib/
+
+.PHONY: uninstall
+uninstall:
+	$(RM) $(PREFIX)/include/mqlog.h
+	$(RM) $(PREFIX)/include/mqlogerrno.h
+	$(RM) $(PREFIX)/include/prot.h
+	$(RM) $(PREFIX)/lib/libmqlog.so
+	$(RM) $(PREFIX)/lib/libmqlog.a
 
 # Dependencies
 ifneq ($(MAKECMDGOALS),clean)

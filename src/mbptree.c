@@ -239,10 +239,8 @@ static struct mbptree_node* mbptree_append_leaf(mbptree_t* tree,
     // * last_leaf is consistently populated with new_leaf
     // * leaf points to new_leaf
     // * leaf and new_leaf point to the same parent
-    const int mid = mbptree_midpoint(tree);
-    assert(new_leaf->size > 0);
     assert(tree->last_leaf != new_leaf);
-    assert(tree->last_leaf->size == mid);
+    assert(tree->last_leaf->size == tree->branch_factor - 1);
     assert(tree->last_leaf->data[tree->last_leaf->size].value.addr == new_leaf);
     assert(tree->last_leaf->parent == new_leaf->parent);
 
@@ -274,8 +272,8 @@ static struct mbptree_node* mbptree_append_leaf(mbptree_t* tree,
     return root;
 }
 
-static struct mbptree_node* mbptree_split_leaf(const mbptree_t* tree,
-                                               struct mbptree_node* leaf) {
+static struct mbptree_node* mbptree_new_leaf(const mbptree_t* tree,
+                                             struct mbptree_node* leaf) {
 
     assert(leaf->leaf == 1);
 
@@ -286,17 +284,8 @@ static struct mbptree_node* mbptree_split_leaf(const mbptree_t* tree,
         return NULL;
     }
 
-    const int mid = mbptree_midpoint(tree);
-    for (int i = mid; i < leaf->size; ++i) {
-        new_leaf->data[new_leaf->size++] = leaf->data[i];
-        leaf->data[i].key = 0;
-        leaf->data[i].value.u64 = 0;
-    }
-    leaf->size = mid;
-
     // make leaf point to next leaf
-    leaf->data[mid].value.addr = new_leaf;
-
+    leaf->data[leaf->size].value.addr = new_leaf;
     return new_leaf;
 }
 
@@ -348,8 +337,8 @@ static int mbptree_tryappend(mbptree_t* tree,
         leaf->parent = new_root;
     }
 
-    // leaf is full, split it.
-    struct mbptree_node* new_leaf = mbptree_split_leaf(tree, leaf);
+    // leaf is full, create a new one
+    struct mbptree_node* new_leaf = mbptree_new_leaf(tree, leaf);
     if (!new_leaf) {
         leaf->parent = NULL;
         mbptree_free_node(new_root);

@@ -5,9 +5,17 @@
 
 /*
  * Implements an immutable monotonic thread safe B+tree.
- * All keys must be monotonically increasing!
- * Deleting/updating is not supported because not needed.
- * The key is a `uint64_t`
+ * Properties:
+ * * All keys must be inserted maintaining a monotonically increases order.
+ * * deletions and updations are disallowed
+ * * keys are of type `uint64_t`
+ *
+ * Unlike a standard B+tree, when a new element is inserted into a full leaf
+ * and a new leaf is created, the full leaf is not split and elements do not get
+ * moved over to the new leaf.
+ * This allows to use space more efficiently and reduce allocations of new
+ * nodes. It has been made possible by the data structures' monitonic property.
+ * Non-leaf nodes split as standard B+tree non-leaf nodes.
  */
 
 union mbptree_value {

@@ -25,3 +25,7 @@ make test
 make lcov
 ```
 Now open lcov-html/index.html with your favourite browser
+
+#### License
+
+The project license is specified in LICENSE.
